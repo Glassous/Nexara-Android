@@ -90,6 +90,7 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var openAIClient: OpenAIClient? = null
     private var googleAIClient: GoogleAIClient? = null
+    private var anthropicAIClient: AnthropicAIClient? = null
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
     
     // AI回复列表
@@ -135,7 +136,7 @@ class MainActivity : AppCompatActivity() {
         initializeSession()
         
         // 初始化OpenAI客户端
-        initializeOpenAIClient()
+        initializeAIClients()
     }
     
     private fun initViews() {
@@ -193,6 +194,14 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "Loaded Google AI groups from config system")
         }
         
+        // 加载Anthropic AI模型配置
+        val anthropicAIConfigPrefs = getSharedPreferences("anthropic_ai_model_config", Context.MODE_PRIVATE)
+        val anthropicAIGroupsConfigJson = anthropicAIConfigPrefs.getString("groups_config", "") ?: ""
+        if (anthropicAIGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(anthropicAIGroupsConfigJson))
+            Log.d("MainActivity", "Loaded Anthropic AI groups from config system")
+        }
+        
         currentGroups = allGroups
         Log.d("MainActivity", "Loaded ${currentGroups.size} total groups")
         
@@ -236,32 +245,52 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initializeOpenAIClient() {
-        // 重置客户端
+    private fun initializeAIClients() {
+        // 重置所有客户端
         openAIClient = null
         googleAIClient = null
+        anthropicAIClient = null
+        
+        Log.d("MainActivity", "initializeAIClients: selectedGroup = ${selectedGroup?.name}, selectedModel = ${selectedModel?.name}")
         
         if (selectedGroup != null) {
-            // 判断是否为Google AI模型（通过检查baseUrl是否为空来判断）
-            if (selectedGroup!!.baseUrl.isEmpty()) {
-                // Google AI模型
-                val apiKey = selectedGroup!!.apiKey
-                if (apiKey.isNotEmpty()) {
-                    googleAIClient = GoogleAIClient(this)
-                    Log.d("MainActivity", "Google AI client initialized with group: ${selectedGroup!!.name}")
-                } else {
-                    Log.d("MainActivity", "Google AI client not initialized - missing API key")
+            val groupName = selectedGroup!!.name.lowercase()
+            val apiKey = selectedGroup!!.apiKey
+            val baseUrl = selectedGroup!!.baseUrl
+            
+            Log.d("MainActivity", "Group details: name='${selectedGroup!!.name}', groupName='$groupName', baseUrl='$baseUrl', apiKey.length=${apiKey.length}")
+            
+            when {
+                // 判断是否为Anthropic AI模型（优先检查）
+                groupName.contains("anthropic") || groupName.contains("claude") -> {
+                    // Anthropic AI模型
+                    if (apiKey.isNotEmpty()) {
+                        anthropicAIClient = AnthropicAIClient(this)
+                        Log.d("MainActivity", "Anthropic AI client initialized with group: ${selectedGroup!!.name}")
+                    } else {
+                        Log.d("MainActivity", "Anthropic AI client not initialized - missing API key")
+                    }
                 }
-            } else {
-                // OpenAI模型
-                val baseUrl = selectedGroup!!.baseUrl
-                val apiKey = selectedGroup!!.apiKey
-                
-                if (baseUrl.isNotEmpty() && apiKey.isNotEmpty()) {
-                    openAIClient = OpenAIClient(baseUrl, apiKey, this)
-                    Log.d("MainActivity", "OpenAI client initialized with group: ${selectedGroup!!.name}, base URL: $baseUrl")
-                } else {
-                    Log.d("MainActivity", "OpenAI client not initialized - missing group configuration")
+                // 判断是否为Google AI模型（通过检查baseUrl是否为空来判断）
+                selectedGroup!!.baseUrl.isEmpty() -> {
+                    // Google AI模型
+                    if (apiKey.isNotEmpty()) {
+                        googleAIClient = GoogleAIClient(this)
+                        Log.d("MainActivity", "Google AI client initialized with group: ${selectedGroup!!.name}")
+                    } else {
+                        Log.d("MainActivity", "Google AI client not initialized - missing API key")
+                    }
+                }
+                else -> {
+                    // OpenAI模型
+                    val baseUrl = selectedGroup!!.baseUrl
+                    
+                    if (baseUrl.isNotEmpty() && apiKey.isNotEmpty()) {
+                        openAIClient = OpenAIClient(baseUrl, apiKey, this)
+                        Log.d("MainActivity", "OpenAI client initialized with group: ${selectedGroup!!.name}, base URL: $baseUrl")
+                    } else {
+                        Log.d("MainActivity", "OpenAI client not initialized - missing group configuration")
+                    }
                 }
             }
         } else {
@@ -374,6 +403,30 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupWindowInsets() {
+        // 强制设置系统UI标志，确保底部导航栏完全透明
+        window.apply {
+            statusBarColor = android.graphics.Color.TRANSPARENT
+            navigationBarColor = android.graphics.Color.TRANSPARENT
+            
+            // 强制底部导航栏透明，禁用系统强制对比度
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                isNavigationBarContrastEnforced = false
+                isStatusBarContrastEnforced = false
+            }
+            
+            // 设置系统UI可见性标志，确保完全透明
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                setDecorFitsSystemWindows(false)
+            } else {
+                @Suppress("DEPRECATION")
+                decorView.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+            }
+        }
+        
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -387,18 +440,31 @@ class MainActivity : AppCompatActivity() {
             layoutParams.height = systemBars.top
             statusBarSpacer.layoutParams = layoutParams
             
-            // 为底部输入区域设置底部边距，考虑键盘和导航栏
+            // 智能安全距离策略：为底部输入区域设置安全距离
             val layoutInputArea = findViewById<View>(R.id.layoutInputArea)
-            val bottomPadding = if (imeInsets.bottom > 0) {
-                imeInsets.bottom
-            } else {
-                systemBars.bottom
+            val bottomPadding = when {
+                // 键盘弹起时，使用键盘高度（优先级最高）
+                imeInsets.bottom > 0 -> imeInsets.bottom
+                // 键盘收起时，使用导航栏高度作为安全距离，确保输入区域不被遮挡
+                // 同时保持导航栏区域完全透明
+                else -> systemBars.bottom
             }
+            
             layoutInputArea.setPadding(
                 layoutInputArea.paddingLeft,
                 layoutInputArea.paddingTop,
                 layoutInputArea.paddingRight,
                 bottomPadding
+            )
+            
+            // 为聊天内容区域添加底部安全距离，确保最后一条消息不被导航栏遮挡
+            val recyclerViewChat = findViewById<RecyclerView>(R.id.recyclerViewChat)
+            recyclerViewChat.setPadding(
+                recyclerViewChat.paddingLeft,
+                recyclerViewChat.paddingTop,
+                recyclerViewChat.paddingRight,
+                // 为聊天内容添加最小安全距离，确保内容可见性
+                if (imeInsets.bottom > 0) 0 else systemBars.bottom
             )
             
             insets
@@ -498,7 +564,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun simulateAiResponse() {
         // 检查是否有可用的客户端
-        if (openAIClient == null && googleAIClient == null) {
+        if (openAIClient == null && googleAIClient == null && anthropicAIClient == null) {
             val errorMessage = ChatMessage(
                 content = "请先在设置中配置AI API",
                 isFromUser = false
@@ -568,8 +634,32 @@ class MainActivity : AppCompatActivity() {
                     // 使用Google AI客户端
                     val googleAIConfigPrefs = getSharedPreferences("google_ai_model_config", Context.MODE_PRIVATE)
                     val streaming = googleAIConfigPrefs.getBoolean("streaming", true)
+                    val apiKey = selectedGroup?.apiKey ?: ""
                     
-                    googleAIClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
+                    googleAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
+                        .collect { chunk ->
+                            if (isFirstChunk) {
+                                responseContent = chunk
+                                isFirstChunk = false
+                            } else {
+                                responseContent += chunk
+                            }
+                            
+                            val aiMessage = ChatMessage(
+                                content = responseContent,
+                                isFromUser = false
+                            )
+                            
+                            chatAdapter.updateLastMessage(aiMessage)
+                            scrollToBottom()
+                        }
+                } else if (anthropicAIClient != null) {
+                    // 使用Anthropic AI客户端
+                    val anthropicAIConfigPrefs = getSharedPreferences("anthropic_ai_model_config", Context.MODE_PRIVATE)
+                    val streaming = anthropicAIConfigPrefs.getBoolean("streaming", true)
+                    val apiKey = selectedGroup?.apiKey ?: ""
+                    
+                    anthropicAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
                         .collect { chunk ->
                             if (isFirstChunk) {
                                 responseContent = chunk
@@ -698,8 +788,8 @@ class MainActivity : AppCompatActivity() {
         loadModelConfiguration()
         // 更新工具栏标题
         updateToolbarTitle()
-        // 重新初始化OpenAI客户端
-        initializeOpenAIClient()
+        // 重新初始化AI客户端
+        initializeAIClients()
     }
     
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

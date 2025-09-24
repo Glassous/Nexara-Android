@@ -36,6 +36,10 @@
             android:name=".GoogleAIModelConfigActivity"
             android:exported="false"
             android:parentActivityName=".SettingsActivity" />
+        <activity
+            android:name=".AnthropicAIModelConfigActivity"
+            android:exported="false"
+            android:parentActivityName=".SettingsActivity" />
 
     </application>
 

@@ -32,6 +32,11 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var buttonModelConfig: MaterialButton
     private lateinit var buttonGoogleAIConfig: MaterialButton
     private lateinit var buttonAnthropicConfig: MaterialButton
+    private lateinit var buttonXAIConfig: MaterialButton
+    private lateinit var buttonDeepSeekConfig: MaterialButton
+    private lateinit var buttonMoonshotConfig: MaterialButton
+    private lateinit var buttonAliyunConfig: MaterialButton
+    private lateinit var buttonVolcanoConfig: MaterialButton
     
     // 模型选择相关
     private lateinit var cardCurrentModel: MaterialCardView
@@ -56,6 +61,8 @@ class SettingsActivity : AppCompatActivity() {
         setupThemeButtons()
         setupModelConfigButton()
         setupGoogleAIConfigButton()
+        setupAnthropicConfigButton()
+        setupNewAIConfigButtons()
         setupModelSelection()
     }
     
@@ -67,6 +74,11 @@ class SettingsActivity : AppCompatActivity() {
         buttonModelConfig = findViewById(R.id.buttonModelConfig)
         buttonGoogleAIConfig = findViewById(R.id.buttonGoogleAIConfig)
         buttonAnthropicConfig = findViewById(R.id.buttonAnthropicConfig)
+        buttonXAIConfig = findViewById(R.id.buttonXAIConfig)
+        buttonDeepSeekConfig = findViewById(R.id.buttonDeepSeekConfig)
+        buttonMoonshotConfig = findViewById(R.id.buttonMoonshotConfig)
+        buttonAliyunConfig = findViewById(R.id.buttonAliyunConfig)
+        buttonVolcanoConfig = findViewById(R.id.buttonVolcanoConfig)
         
         // 模型选择相关
         cardCurrentModel = findViewById(R.id.cardCurrentModel)
@@ -88,11 +100,35 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun setupWindowInsets() {
+        // 强制设置系统UI标志，确保底部导航栏完全透明
+        window.apply {
+            statusBarColor = android.graphics.Color.TRANSPARENT
+            navigationBarColor = android.graphics.Color.TRANSPARENT
+            
+            // 强制底部导航栏透明，禁用系统强制对比度
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                isNavigationBarContrastEnforced = false
+                isStatusBarContrastEnforced = false
+            }
+            
+            // 设置系统UI可见性标志，确保完全透明
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                setDecorFitsSystemWindows(false)
+            } else {
+                @Suppress("DEPRECATION")
+                decorView.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+            }
+        }
+        
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             
-            // 为主容器设置侧边边距，不设置顶部边距让AppBar延伸到状态栏
-            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+            // 为主容器设置侧边边距，不设置顶部和底部边距让内容延伸到导航栏下方实现完全透明
+            v.setPadding(systemBars.left, 0, systemBars.right, 0)
             
             // 设置状态栏占位区域的高度
             val statusBarSpacer = findViewById<android.view.View>(R.id.statusBarSpacer)
@@ -187,6 +223,34 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
     
+    private fun setupAnthropicConfigButton() {
+        buttonAnthropicConfig.setOnClickListener {
+            startActivity(Intent(this, AnthropicAIModelConfigActivity::class.java))
+        }
+    }
+    
+    private fun setupNewAIConfigButtons() {
+        buttonXAIConfig.setOnClickListener {
+            Toast.makeText(this, "xAI配置功能敬请期待", Toast.LENGTH_SHORT).show()
+        }
+        
+        buttonDeepSeekConfig.setOnClickListener {
+            Toast.makeText(this, "DeepSeek配置功能敬请期待", Toast.LENGTH_SHORT).show()
+        }
+        
+        buttonMoonshotConfig.setOnClickListener {
+            Toast.makeText(this, "Moonshot配置功能敬请期待", Toast.LENGTH_SHORT).show()
+        }
+        
+        buttonAliyunConfig.setOnClickListener {
+            Toast.makeText(this, "阿里云百炼配置功能敬请期待", Toast.LENGTH_SHORT).show()
+        }
+        
+        buttonVolcanoConfig.setOnClickListener {
+            Toast.makeText(this, "火山方舟配置功能敬请期待", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
@@ -220,6 +284,13 @@ class SettingsActivity : AppCompatActivity() {
         val googleAIGroupsConfigJson = googleAIPrefs.getString("groups_config", "") ?: ""
         if (googleAIGroupsConfigJson.isNotEmpty()) {
             allGroups.addAll(ConfigManager.jsonToGroupConfigList(googleAIGroupsConfigJson))
+        }
+        
+        // 加载Anthropic AI模型配置
+        val anthropicAIPrefs = getSharedPreferences("anthropic_ai_model_config", Context.MODE_PRIVATE)
+        val anthropicAIGroupsConfigJson = anthropicAIPrefs.getString("groups_config", "") ?: ""
+        if (anthropicAIGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(anthropicAIGroupsConfigJson))
         }
         
         currentGroups = allGroups

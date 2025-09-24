@@ -101,11 +101,35 @@ class GoogleAIModelConfigActivity : AppCompatActivity() {
     }
     
     private fun setupWindowInsets() {
+        // 强制设置系统UI标志，确保底部导航栏完全透明
+        window.apply {
+            statusBarColor = android.graphics.Color.TRANSPARENT
+            navigationBarColor = android.graphics.Color.TRANSPARENT
+            
+            // 强制底部导航栏透明，禁用系统强制对比度
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                isNavigationBarContrastEnforced = false
+                isStatusBarContrastEnforced = false
+            }
+            
+            // 设置系统UI可见性标志，确保完全透明
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                setDecorFitsSystemWindows(false)
+            } else {
+                @Suppress("DEPRECATION")
+                decorView.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+            }
+        }
+        
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             
-            // 为主容器设置侧边边距，不设置顶部边距让AppBar延伸到状态栏
-            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+            // 为主容器设置侧边边距，不设置顶部和底部边距让内容延伸到导航栏下方实现完全透明
+            v.setPadding(systemBars.left, 0, systemBars.right, 0)
             
             // 设置状态栏占位区域的高度
             val statusBarSpacer = findViewById<View>(R.id.statusBarSpacer)

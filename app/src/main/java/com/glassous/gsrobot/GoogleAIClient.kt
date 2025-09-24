@@ -25,7 +25,7 @@ class GoogleAIClient(private val context: Context) {
     companion object {
         private const val TAG = "GoogleAIClient"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-        private const val PREFS_NAME = "google_ai_config"
+        private const val PREFS_NAME = "google_ai_model_config"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_TEMPERATURE_ENABLED = "temperature_enabled"
         private const val KEY_TEMPERATURE_VALUE = "temperature_value"
@@ -59,10 +59,10 @@ class GoogleAIClient(private val context: Context) {
     fun sendChatRequest(
         model: String,
         messages: List<ChatMessage>,
+        apiKey: String,
         streaming: Boolean = true,
         enableWebSearch: Boolean = false
     ): Flow<String> = flow {
-        val apiKey = getApiKey()
         if (apiKey.isNullOrEmpty()) {
             emit("Error: Google AI API key not configured")
             return@flow
