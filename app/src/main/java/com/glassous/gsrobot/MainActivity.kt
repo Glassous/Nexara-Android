@@ -70,6 +70,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRemoveImage: com.google.android.material.button.MaterialButton
     private var selectedImageUri: android.net.Uri? = null
     
+    // 输入建议按钮
+    private lateinit var layoutInputSuggestions: android.widget.LinearLayout
+    private lateinit var btnSuggestion1: com.google.android.material.button.MaterialButton
+    private lateinit var btnSuggestion2: com.google.android.material.button.MaterialButton
+    private lateinit var btnSuggestion3: com.google.android.material.button.MaterialButton
+    private lateinit var btnRefreshSuggestions: com.google.android.material.button.MaterialButton
+    
     // 文件选择器
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -91,7 +98,32 @@ class MainActivity : AppCompatActivity() {
     private var openAIClient: OpenAIClient? = null
     private var googleAIClient: GoogleAIClient? = null
     private var anthropicAIClient: AnthropicAIClient? = null
+    private var volcanoArkClient: VolcanoArkClient? = null
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
+    
+    // 输入建议数据
+    private val inputSuggestions = listOf(
+        Pair("写作", "请帮我写一篇关于以下主题的文章："),
+        Pair("翻译", "请将以下内容翻译成中文："),
+        Pair("编程", "请用 Python 编写一个函数来实现以下功能："),
+        Pair("代码解释", "请解释以下代码的作用："),
+        Pair("学习", "请详细解释以下概念："),
+        Pair("创意", "请给我一些关于以下主题的创意点子："),
+        Pair("总结", "请总结以下内容的要点："),
+        Pair("润色", "请优化以下文本，使其更流畅自然："),
+        Pair("分析", "请深入分析以下内容："),
+        Pair("计划", "请为我制定一个详细的计划："),
+        Pair("邮件", "请帮我写一封专业的邮件，主题是："),
+        Pair("故事", "请讲一个关于以下主题的故事："),
+        Pair("诗歌", "请写一首关于以下主题的诗歌："),
+        Pair("演讲", "请为我准备一篇演讲稿，主题是："),
+        Pair("简历", "请帮我优化简历中的以下部分："),
+        Pair("营销", "请为我们的产品制定一个营销策略："),
+        Pair("报告", "请帮我撰写一份关于以下主题的报告："),
+        Pair("调研", "请帮我进行以下主题的调研并总结："),
+        Pair("面试", "请帮我准备面试中可能会遇到的问题："),
+        Pair("对比", "请对以下两个事物进行比较并分析优缺点：")
+    )
     
     // AI回复列表
     private val aiResponses = listOf(
@@ -159,6 +191,13 @@ class MainActivity : AppCompatActivity() {
         imagePreview = findViewById(R.id.imagePreview)
         btnRemoveImage = findViewById(R.id.btnRemoveImage)
         
+        // 初始化输入建议按钮
+        layoutInputSuggestions = findViewById(R.id.layoutInputSuggestions)
+        btnSuggestion1 = findViewById(R.id.btnSuggestion1)
+        btnSuggestion2 = findViewById(R.id.btnSuggestion2)
+        btnSuggestion3 = findViewById(R.id.btnSuggestion3)
+        btnRefreshSuggestions = findViewById(R.id.btnRefreshSuggestions)
+        
         // 初始化导航抽屉内的组件
         recyclerViewChatSessions = navigationDrawer.findViewById(R.id.recyclerViewChatSessions)
         textEmptyState = navigationDrawer.findViewById(R.id.textEmptyState)
@@ -173,6 +212,9 @@ class MainActivity : AppCompatActivity() {
         
         // 初始化对话历史适配器
         setupChatSessionsRecyclerView()
+        
+        // 初始化输入建议按钮
+        updateInputSuggestions()
     }
     
     private fun loadModelConfiguration() {
@@ -200,6 +242,14 @@ class MainActivity : AppCompatActivity() {
         if (anthropicAIGroupsConfigJson.isNotEmpty()) {
             allGroups.addAll(ConfigManager.jsonToGroupConfigList(anthropicAIGroupsConfigJson))
             Log.d("MainActivity", "Loaded Anthropic AI groups from config system")
+        }
+        
+        // 加载火山方舟模型配置
+        val volcanoArkConfigPrefs = getSharedPreferences("volcano_ark_model_config", Context.MODE_PRIVATE)
+        val volcanoArkGroupsConfigJson = volcanoArkConfigPrefs.getString("groups_config", "") ?: ""
+        if (volcanoArkGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(volcanoArkGroupsConfigJson))
+            Log.d("MainActivity", "Loaded Volcano Ark groups from config system")
         }
         
         currentGroups = allGroups
@@ -250,6 +300,7 @@ class MainActivity : AppCompatActivity() {
         openAIClient = null
         googleAIClient = null
         anthropicAIClient = null
+        volcanoArkClient = null
         
         Log.d("MainActivity", "initializeAIClients: selectedGroup = ${selectedGroup?.name}, selectedModel = ${selectedModel?.name}")
         
@@ -269,6 +320,16 @@ class MainActivity : AppCompatActivity() {
                         Log.d("MainActivity", "Anthropic AI client initialized with group: ${selectedGroup!!.name}")
                     } else {
                         Log.d("MainActivity", "Anthropic AI client not initialized - missing API key")
+                    }
+                }
+                // 判断是否为火山方舟模型
+                groupName.contains("火山方舟") || groupName.contains("volcano") || groupName.contains("ark") -> {
+                    // 火山方舟模型
+                    if (baseUrl.isNotEmpty() && apiKey.isNotEmpty()) {
+                        volcanoArkClient = VolcanoArkClient(baseUrl, apiKey, this)
+                        Log.d("MainActivity", "Volcano Ark client initialized with group: ${selectedGroup!!.name}, base URL: $baseUrl")
+                    } else {
+                        Log.d("MainActivity", "Volcano Ark client not initialized - missing configuration")
                     }
                 }
                 // 判断是否为Google AI模型（通过检查baseUrl是否为空来判断）
@@ -385,6 +446,39 @@ class MainActivity : AppCompatActivity() {
         // 移除图片按钮点击监听
         btnRemoveImage.setOnClickListener {
             clearSelectedImage()
+        }
+        
+        // 建议按钮点击监听
+        btnSuggestion1.setOnClickListener {
+            val buttonText = btnSuggestion1.text.toString()
+            val suggestion = inputSuggestions.find { it.first == buttonText }
+            suggestion?.let {
+                editTextMessage.setText(it.second)
+                editTextMessage.setSelection(editTextMessage.text?.length ?: 0)
+            }
+        }
+        
+        btnSuggestion2.setOnClickListener {
+            val buttonText = btnSuggestion2.text.toString()
+            val suggestion = inputSuggestions.find { it.first == buttonText }
+            suggestion?.let {
+                editTextMessage.setText(it.second)
+                editTextMessage.setSelection(editTextMessage.text?.length ?: 0)
+            }
+        }
+        
+        btnSuggestion3.setOnClickListener {
+            val buttonText = btnSuggestion3.text.toString()
+            val suggestion = inputSuggestions.find { it.first == buttonText }
+            suggestion?.let {
+                editTextMessage.setText(it.second)
+                editTextMessage.setSelection(editTextMessage.text?.length ?: 0)
+            }
+        }
+        
+        // 换一批按钮点击监听
+        btnRefreshSuggestions.setOnClickListener {
+            updateInputSuggestions()
         }
     }
     
@@ -564,7 +658,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun simulateAiResponse() {
         // 检查是否有可用的客户端
-        if (openAIClient == null && googleAIClient == null && anthropicAIClient == null) {
+        if (openAIClient == null && googleAIClient == null && anthropicAIClient == null && volcanoArkClient == null) {
             val errorMessage = ChatMessage(
                 content = "请先在设置中配置AI API",
                 isFromUser = false
@@ -676,6 +770,28 @@ class MainActivity : AppCompatActivity() {
                             chatAdapter.updateLastMessage(aiMessage)
                             scrollToBottom()
                         }
+                } else if (volcanoArkClient != null) {
+                    // 使用火山方舟客户端
+                    val volcanoArkConfigPrefs = getSharedPreferences("volcano_ark_model_config", Context.MODE_PRIVATE)
+                    val streaming = volcanoArkConfigPrefs.getBoolean("streaming", true)
+                    
+                    volcanoArkClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
+                        .collect { chunk ->
+                            if (isFirstChunk) {
+                                responseContent = chunk
+                                isFirstChunk = false
+                            } else {
+                                responseContent += chunk
+                            }
+                            
+                            val aiMessage = ChatMessage(
+                                content = responseContent,
+                                isFromUser = false
+                            )
+                            
+                            chatAdapter.updateLastMessage(aiMessage)
+                            scrollToBottom()
+                        }
                 }
                 
                 // 保存最终消息到当前会话
@@ -714,7 +830,29 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun updateWelcomeVisibility() {
-        textViewWelcome.visibility = if (messages.isEmpty()) View.VISIBLE else View.GONE
+        if (messages.isEmpty()) {
+            textViewWelcome.visibility = View.VISIBLE
+            textViewWelcome.text = getTimeBasedGreeting()
+            layoutInputSuggestions.visibility = View.VISIBLE
+            btnRefreshSuggestions.visibility = View.VISIBLE
+        } else {
+            textViewWelcome.visibility = View.GONE
+            layoutInputSuggestions.visibility = View.GONE
+            btnRefreshSuggestions.visibility = View.GONE
+        }
+    }
+    
+    private fun getTimeBasedGreeting(): String {
+        val calendar = java.util.Calendar.getInstance()
+        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+        
+        return when (hour) {
+            in 5..11 -> "早上好！"
+            in 12..13 -> "中午好！"
+            in 14..17 -> "下午好！"
+            in 18..22 -> "晚上好！"
+            else -> "夜深了！"
+        }
     }
     
 
@@ -844,5 +982,14 @@ class MainActivity : AppCompatActivity() {
         selectedImageUri = null
         layoutImagePreview.visibility = View.GONE
         imagePreview.setImageURI(null)
+    }
+    
+    private fun updateInputSuggestions() {
+        // 随机选择3个不同的建议
+        val shuffledSuggestions = inputSuggestions.shuffled().take(3)
+        
+        btnSuggestion1.text = shuffledSuggestions[0].first
+        btnSuggestion2.text = shuffledSuggestions[1].first
+        btnSuggestion3.text = shuffledSuggestions[2].first
     }
 }

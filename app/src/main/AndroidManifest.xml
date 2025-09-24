@@ -40,6 +40,10 @@
             android:name=".AnthropicAIModelConfigActivity"
             android:exported="false"
             android:parentActivityName=".SettingsActivity" />
+        <activity
+            android:name=".VolcanoArkModelConfigActivity"
+            android:exported="false"
+            android:parentActivityName=".SettingsActivity" />
 
     </application>
 

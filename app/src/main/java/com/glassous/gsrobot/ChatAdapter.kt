@@ -89,6 +89,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         val textAiMessage: TextView = itemView.findViewById(R.id.textAiMessage)
         val imageUserMessage: ImageView = itemView.findViewById(R.id.imageUserMessage)
         val buttonCopyMessage: ImageButton = itemView.findViewById(R.id.buttonCopyMessage)
+        val buttonCopyUserMessage: ImageButton = itemView.findViewById(R.id.buttonCopyUserMessage)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChatViewHolder {
@@ -124,6 +125,11 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
                 }
             } else {
                 holder.imageUserMessage.visibility = View.GONE
+            }
+            
+            // 设置用户消息复制按钮点击事件
+            holder.buttonCopyUserMessage.setOnClickListener {
+                copyToClipboard(holder.itemView.context, message.content)
             }
         } else {
             // 显示AI消息

@@ -21,6 +21,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.glassous.gsrobot.GoogleAIModelConfigActivity
+import com.glassous.gsrobot.VolcanoArkModelConfigActivity
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -247,7 +248,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         buttonVolcanoConfig.setOnClickListener {
-            Toast.makeText(this, "火山方舟配置功能敬请期待", Toast.LENGTH_SHORT).show()
+            val intent = Intent(this, VolcanoArkModelConfigActivity::class.java)
+            startActivity(intent)
         }
     }
     
@@ -291,6 +293,13 @@ class SettingsActivity : AppCompatActivity() {
         val anthropicAIGroupsConfigJson = anthropicAIPrefs.getString("groups_config", "") ?: ""
         if (anthropicAIGroupsConfigJson.isNotEmpty()) {
             allGroups.addAll(ConfigManager.jsonToGroupConfigList(anthropicAIGroupsConfigJson))
+        }
+        
+        // 加载火山方舟模型配置
+        val volcanoArkPrefs = getSharedPreferences("volcano_ark_model_config", Context.MODE_PRIVATE)
+        val volcanoArkGroupsConfigJson = volcanoArkPrefs.getString("groups_config", "") ?: ""
+        if (volcanoArkGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(volcanoArkGroupsConfigJson))
         }
         
         currentGroups = allGroups
