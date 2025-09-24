@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <item
+        android:id="@+id/nav_new_chat"
+        android:icon="@drawable/ic_add_chat"
+        android:title="新建对话" />
+    
+    <group
+        android:id="@+id/group_chat_history"
+        android:checkableBehavior="single">
+        <item
+            android:title="历史对话"
+            android:enabled="false" />
+        <!-- 历史对话项目将动态添加 -->
+        <!-- 每个对话项将包含编辑和删除选项 -->
+    </group>
+    
+    <!-- 对话项的子菜单模板 -->
+    <group android:id="@+id/group_chat_actions">
+        <item
+            android:id="@+id/action_edit_chat"
+            android:icon="@drawable/ic_edit"
+            android:title="编辑"
+            android:visible="false" />
+        <item
+            android:id="@+id/action_delete_chat"
+            android:icon="@drawable/ic_delete"
+            android:title="删除"
+            android:visible="false" />
+    </group>
+    
+</menu>
