@@ -1,6 +1,7 @@
 package com.glassous.gsrobot
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -249,6 +250,148 @@ class GoogleAIClient(private val context: Context) {
             requestJson.put("tools", toolsArray)
         }
         
+        return requestJson.toString()
+    }
+
+    /**
+     * Generate image using Google AI Gemini 2.5 Flash Image Preview model
+     * @param prompt The text prompt for image generation
+     * @param apiKey The Google AI API key
+     * @return Flow<String> containing either base64 image data or error message
+     */
+    fun generateImage(
+        prompt: String,
+        apiKey: String
+    ): Flow<String> = flow {
+        if (apiKey.isNullOrEmpty()) {
+            emit("Error: Google AI API key not configured")
+            return@flow
+        }
+
+        if (prompt.isBlank()) {
+            emit("Error: Image prompt cannot be empty")
+            return@flow
+        }
+
+        try {
+            val model = "gemini-2.5-flash-image-preview"
+            val url = "$BASE_URL/$model:generateContent"
+            
+            Log.d(TAG, "Generating image with prompt: $prompt")
+            Log.d(TAG, "Using model: $model")
+            Log.d(TAG, "Request URL: $url")
+
+            // Build request body for image generation
+            val requestBody = buildImageGenerationRequestBody(prompt)
+            
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .addHeader("x-goog-api-key", apiKey)
+                .addHeader("Content-Type", "application/json")
+                .build()
+
+            val response = client.newCall(request).execute()
+            
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                Log.e(TAG, "Image generation API request failed: ${response.code} - $errorBody")
+                emit("Error: Image generation failed (${response.code}): $errorBody")
+                return@flow
+            }
+
+            response.body?.let { responseBody ->
+                val responseString = responseBody.string()
+                Log.d(TAG, "Image generation response: $responseString")
+                
+                try {
+                    val jsonObject = JSONObject(responseString)
+                    val candidates = jsonObject.optJSONArray("candidates")
+                    
+                    if (candidates != null && candidates.length() > 0) {
+                        val candidate = candidates.getJSONObject(0)
+                        val content = candidate.optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        
+                        if (parts != null && parts.length() > 0) {
+                            val part = parts.getJSONObject(0)
+                            
+                            // Check if response contains inline data (base64 image)
+                            val inlineData = part.optJSONObject("inlineData")
+                            if (inlineData != null) {
+                                val base64Data = inlineData.optString("data", "")
+                                val mimeType = inlineData.optString("mimeType", "image/png")
+                                
+                                if (base64Data.isNotEmpty()) {
+                                    // Return the base64 data with data URL format
+                                    val dataUrl = "data:$mimeType;base64,$base64Data"
+                                    emit(dataUrl)
+                                } else {
+                                    emit("Error: No image data found in response")
+                                }
+                            } else {
+                                // Check for text response (might contain error or explanation)
+                                val text = part.optString("text", "")
+                                if (text.isNotEmpty()) {
+                                    emit("Error: Received text instead of image: $text")
+                                } else {
+                                    emit("Error: No image data found in response")
+                                }
+                            }
+                        } else {
+                            emit("Error: No content parts found in response")
+                        }
+                    } else {
+                        emit("Error: No candidates found in response")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing image generation response: ${e.message}")
+                    Log.e(TAG, "Response content: $responseString")
+                    emit("Error: Image generation response parsing failed - ${e.message}")
+                }
+            }
+            
+        } catch (e: IOException) {
+            Log.e(TAG, "Network error during image generation: ${e.message}")
+            emit("Error: Network connection failed - ${e.message}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error during image generation: ${e.message}")
+            emit("Error: Image generation failed - ${e.message}")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * Build request body for image generation
+     */
+    private fun buildImageGenerationRequestBody(prompt: String): String {
+        val requestJson = JSONObject()
+        
+        // Add generation config if available
+        val globalConfig = getGlobalConfig()
+        if (globalConfig.length() > 0) {
+            val generationConfig = JSONObject()
+            globalConfig.keys().forEach { key ->
+                generationConfig.put(key, globalConfig.get(key))
+            }
+            requestJson.put("generationConfig", generationConfig)
+        }
+        
+        // Build contents array with the text prompt
+        val contentsArray = JSONArray()
+        val contentObject = JSONObject()
+        contentObject.put("role", "user")
+        
+        val partsArray = JSONArray()
+        val textPart = JSONObject()
+        textPart.put("text", prompt)
+        partsArray.put(textPart)
+        
+        contentObject.put("parts", partsArray)
+        contentsArray.put(contentObject)
+        
+        requestJson.put("contents", contentsArray)
+        
+        Log.d(TAG, "Image generation request body: $requestJson")
         return requestJson.toString()
     }
 }

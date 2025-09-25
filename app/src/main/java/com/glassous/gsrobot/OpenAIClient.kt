@@ -208,4 +208,120 @@ class OpenAIClient(
         }
         return "解析响应失败"
     }
+
+    /**
+     * 发送图片生成请求到OpenAI DALL-E API
+     * @param prompt 图片描述提示词
+     * @param model 模型名称 (dall-e-2, dall-e-3, gpt-image-1)
+     * @param size 图片尺寸 (1024x1024, 1792x1024, 1024x1792)
+     * @param quality 图片质量 (standard, hd)
+     * @param style 图片风格 (vivid, natural)
+     * @param n 生成图片数量 (1-10, DALL-E 3只支持1)
+     * @return 返回包含图片URL或base64数据的Flow
+     */
+    suspend fun generateImage(
+        prompt: String,
+        model: String = "dall-e-3",
+        size: String = "1024x1024",
+        quality: String = "standard",
+        style: String = "vivid",
+        n: Int = 1,
+        responseFormat: String = "url"
+    ): Flow<String> = flow {
+        try {
+            val url = URL("$baseUrl/images/generations")
+            val connection = url.openConnection() as HttpURLConnection
+            
+            // 设置请求头
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.doOutput = true
+            
+            // 构建请求体
+            val requestBody = buildImageGenerationRequestBody(prompt, model, size, quality, style, n, responseFormat)
+            Log.d(TAG, "Image generation request body: $requestBody")
+            
+            // 发送请求
+            val writer = OutputStreamWriter(connection.outputStream)
+            writer.write(requestBody)
+            writer.flush()
+            writer.close()
+            
+            val responseCode = connection.responseCode
+            Log.d(TAG, "Image generation response code: $responseCode")
+            
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                val response = reader.readText()
+                Log.d(TAG, "Image generation response: $response")
+                reader.close()
+                
+                // 解析响应并提取图片URL或base64数据
+                val imageData = parseImageGenerationResponse(response, responseFormat)
+                emit(imageData)
+            } else {
+                val errorReader = BufferedReader(InputStreamReader(connection.errorStream))
+                val errorResponse = errorReader.readText()
+                Log.e(TAG, "Image generation error response: $errorResponse")
+                errorReader.close()
+                emit("图片生成失败: $errorResponse")
+            }
+            
+            connection.disconnect()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating image", e)
+            emit("图片生成请求失败: ${e.message}")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * 构建图片生成API请求体
+     */
+    private fun buildImageGenerationRequestBody(
+        prompt: String,
+        model: String,
+        size: String,
+        quality: String,
+        style: String,
+        n: Int,
+        responseFormat: String
+    ): String {
+        val jsonObject = JSONObject()
+        jsonObject.put("prompt", prompt)
+        jsonObject.put("model", model)
+        jsonObject.put("size", size)
+        jsonObject.put("n", n)
+        jsonObject.put("response_format", responseFormat)
+        
+        // DALL-E 3 特有参数
+        if (model == "dall-e-3" || model == "gpt-image-1") {
+            jsonObject.put("quality", quality)
+            jsonObject.put("style", style)
+        }
+        
+        return jsonObject.toString()
+    }
+
+    /**
+     * 解析图片生成响应
+     */
+    private fun parseImageGenerationResponse(response: String, responseFormat: String): String {
+        try {
+            val jsonObject = JSONObject(response)
+            val dataArray = jsonObject.getJSONArray("data")
+            if (dataArray.length() > 0) {
+                val imageData = dataArray.getJSONObject(0)
+                return if (responseFormat == "url") {
+                    imageData.getString("url")
+                } else {
+                    imageData.getString("b64_json")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing image generation response", e)
+        }
+        return "解析图片生成响应失败"
+    }
 }

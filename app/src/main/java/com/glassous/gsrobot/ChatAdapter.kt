@@ -116,8 +116,8 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
                 copyToClipboard(holder.itemView.context, message.content)
             }
             holder.buttonDetailUserMessage.setOnClickListener {
-                // val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
-                // holder.itemView.context.startActivity(intent)
+                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                holder.itemView.context.startActivity(intent)
             }
         } else {
             holder.layoutUserMessage.visibility = View.GONE
@@ -127,8 +127,8 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
                 copyToClipboard(holder.itemView.context, message.content)
             }
             holder.buttonDetailMessage.setOnClickListener {
-                // val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
-                // holder.itemView.context.startActivity(intent)
+                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                holder.itemView.context.startActivity(intent)
             }
         }
     }

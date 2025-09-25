@@ -208,6 +208,33 @@
                     app:textEndPadding="8dp"
                     app:textStartPadding="8dp" />
 
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipImageGenerate"
+                    style="@style/CustomChipStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:checkable="true"
+                    android:checked="false"
+                    android:elevation="2dp"
+                    android:text="图片生成"
+                    android:textSize="14sp"
+                    app:checkedIconVisible="true"
+                    app:chipBackgroundColor="@android:color/transparent"
+                    app:chipCornerRadius="16dp"
+                    app:chipEndPadding="12dp"
+                    app:chipIcon="@drawable/ic_image_generate"
+                    app:chipIconSize="18dp"
+                    app:chipIconTint="?attr/colorPrimary"
+                    app:chipMinHeight="32dp"
+                    app:chipStartPadding="12dp"
+                    app:chipStrokeColor="?attr/colorPrimary"
+                    app:chipStrokeWidth="1dp"
+                    app:closeIconVisible="false"
+                    app:rippleColor="?attr/colorPrimary"
+                    app:textEndPadding="8dp"
+                    app:textStartPadding="8dp" />
+
             </com.google.android.material.chip.ChipGroup>
 
         </HorizontalScrollView>

@@ -59,9 +59,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutNewChat: View
     private lateinit var modelConfigPrefs: SharedPreferences
 
-    // 联网搜索相关组件
+    // 联网搜索Chip
     private lateinit var chipWebSearch: com.google.android.material.chip.Chip
     private var isWebSearchEnabled: Boolean = false
+    
+    // 图片生成Chip
+    private lateinit var chipImageGenerate: com.google.android.material.chip.Chip
+    private var isImageGenerateEnabled: Boolean = false
 
     // 文件上传相关
     private lateinit var textInputLayout: com.google.android.material.textfield.TextInputLayout
@@ -183,6 +187,9 @@ class MainActivity : AppCompatActivity() {
 
         // 初始化联网搜索Chip
         chipWebSearch = findViewById(R.id.chipWebSearch)
+        
+        // 初始化图片生成Chip
+        chipImageGenerate = findViewById(R.id.chipImageGenerate)
 
         // 初始化输入框布局
         textInputLayout = findViewById(R.id.textInputLayout)
@@ -457,6 +464,11 @@ class MainActivity : AppCompatActivity() {
         chipWebSearch.setOnCheckedChangeListener { _, isChecked ->
             isWebSearchEnabled = isChecked
         }
+        
+        // 图片生成Chip点击监听
+        chipImageGenerate.setOnCheckedChangeListener { _, isChecked ->
+            isImageGenerateEnabled = isChecked
+        }
 
         // 文件上传图标点击监听
         textInputLayout.setStartIconOnClickListener {
@@ -592,7 +604,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun addWelcomeMessage() {
         val welcomeMessage = ChatMessage(
-            content = "你好！我是GSRobot，很高兴为您服务！有什么我可以帮助您的吗？",
+            content = "",
             isFromUser = false
         )
         chatAdapter.addMessage(welcomeMessage)
@@ -606,6 +618,16 @@ class MainActivity : AppCompatActivity() {
         // 检查是否有文本或图片
         if (messageText.isNullOrEmpty() && selectedImageUri == null) {
             Toast.makeText(this, "请输入消息或选择图片", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 如果启用了图片生成功能，处理图片生成请求
+        if (isImageGenerateEnabled) {
+            if (messageText.isNullOrEmpty()) {
+                Toast.makeText(this, "请输入图片描述", Toast.LENGTH_SHORT).show()
+                return
+            }
+            handleImageGeneration(messageText)
             return
         }
 
@@ -646,7 +668,7 @@ class MainActivity : AppCompatActivity() {
         scrollToBottom()
         updateWelcomeVisibility()
 
-        // 如果是第一条消息，更新会话标题为完整的消息内容
+        // 如果第一条消息，更新会话标题为完整的消息内容
         if (isFirstMessage) {
             val titleText = if (messageText.isNullOrEmpty()) "图片消息" else messageText
             sessionManager.getCurrentSessionId()?.let { sessionId ->
@@ -664,6 +686,143 @@ class MainActivity : AppCompatActivity() {
 
         // AI回复（延迟1-2秒）
         simulateAiResponse()
+    }
+
+    private fun handleImageGeneration(prompt: String) {
+        // 确保有当前会话
+        val isFirstMessage = !sessionManager.hasCurrentSession()
+        if (isFirstMessage) {
+            sessionManager.startNewSession("图片生成")
+            updateNavigationMenu()
+        }
+
+        // 添加用户的图片生成请求消息
+        val userMessage = ChatMessage(
+            content = prompt,
+            isFromUser = true
+        )
+        chatAdapter.addMessage(userMessage)
+        sessionManager.saveMessage(userMessage)
+        scrollToBottom()
+        updateWelcomeVisibility()
+
+        // 添加加载中的消息
+        val loadingMessage = ChatMessage(
+            content = "正在生成图片，请稍候...",
+            isFromUser = false
+        )
+        chatAdapter.addMessage(loadingMessage)
+        scrollToBottom()
+
+        // 根据当前选择的模型类型调用相应的图片生成API
+        when {
+            // 检查是否选择了Google AI模型
+            googleAIClient != null && selectedGroup != null && selectedGroup!!.baseUrl.isEmpty() -> {
+                // 使用Google AI图片生成
+                val apiKey = selectedGroup?.apiKey ?: ""
+                Log.d("GSRobot", "Using Google AI for image generation with model: gemini-2.5-flash-image-preview")
+                
+                coroutineScope.launch {
+                    try {
+                        googleAIClient!!.generateImage(prompt, apiKey).collect { imageResult ->
+                            // 检查结果是否为data URL（成功）还是错误消息
+                            if (imageResult.startsWith("data:", ignoreCase = true)) {
+                                // 成功生成图片，更新消息显示图片
+                                val imageMessage = ChatMessage(
+                                    content = "已为您生成图片：",
+                                    isFromUser = false,
+                                    imageUri = imageResult
+                                )
+                                chatAdapter.updateLastMessage(imageMessage)
+                                sessionManager.saveMessage(imageMessage)
+                                Log.d("GSRobot", "Google AI image generation successful")
+                            } else {
+                                // 生成失败，显示错误消息
+                                val errorMessage = ChatMessage(
+                                    content = "图片生成失败：$imageResult",
+                                    isFromUser = false
+                                )
+                                chatAdapter.updateLastMessage(errorMessage)
+                                sessionManager.saveMessage(errorMessage)
+                                Log.e("GSRobot", "Google AI image generation failed: $imageResult")
+                            }
+                            scrollToBottom()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("GSRobot", "Google AI image generation failed", e)
+                        val errorMessage = ChatMessage(
+                            content = "图片生成失败：${e.message}",
+                            isFromUser = false
+                        )
+                        chatAdapter.updateLastMessage(errorMessage)
+                        sessionManager.saveMessage(errorMessage)
+                        scrollToBottom()
+                    }
+                }
+            }
+            // 使用OpenAI图片生成（原有逻辑）
+            openAIClient != null -> {
+                Log.d("GSRobot", "Using OpenAI for image generation with model: dall-e-3")
+                
+                coroutineScope.launch {
+                    try {
+                        openAIClient!!.generateImage(
+                            prompt = prompt,
+                            model = "dall-e-3",
+                            size = "1024x1024",
+                            quality = "standard",
+                            n = 1
+                        ).collect { imageResult ->
+                            // 检查结果是否为URL（成功）还是错误消息
+                            if (imageResult.startsWith("http")) {
+                                // 成功生成图片，更新消息显示图片
+                                val imageMessage = ChatMessage(
+                                    content = "已为您生成图片：",
+                                    isFromUser = false,
+                                    imageUri = imageResult
+                                )
+                                chatAdapter.updateLastMessage(imageMessage)
+                                sessionManager.saveMessage(imageMessage)
+                                Log.d("GSRobot", "OpenAI image generation successful")
+                            } else {
+                                // 生成失败，显示错误消息
+                                val errorMessage = ChatMessage(
+                                    content = "图片生成失败：$imageResult",
+                                    isFromUser = false
+                                )
+                                chatAdapter.updateLastMessage(errorMessage)
+                                sessionManager.saveMessage(errorMessage)
+                                Log.e("GSRobot", "OpenAI image generation failed: $imageResult")
+                            }
+                            scrollToBottom()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("GSRobot", "OpenAI image generation failed", e)
+                        val errorMessage = ChatMessage(
+                            content = "图片生成失败：${e.message}",
+                            isFromUser = false
+                        )
+                        chatAdapter.updateLastMessage(errorMessage)
+                        sessionManager.saveMessage(errorMessage)
+                        scrollToBottom()
+                    }
+                }
+            }
+            else -> {
+                // 没有可用的图片生成客户端
+                val errorMessage = ChatMessage(
+                    content = "图片生成功能不可用，请检查AI模型配置",
+                    isFromUser = false
+                )
+                chatAdapter.updateLastMessage(errorMessage)
+                sessionManager.saveMessage(errorMessage)
+                scrollToBottom()
+                Log.e("GSRobot", "No image generation client available")
+            }
+        }
+
+        // 清空输入框
+        editTextMessage.text?.clear()
     }
 
     private fun simulateAiResponse() {
@@ -943,7 +1102,7 @@ class MainActivity : AppCompatActivity() {
         val title = if (modelName.isNotEmpty()) {
             modelName
         } else {
-            "GSRobot"
+            "Nexara"
         }
         supportActionBar?.title = title
         toolbar.title = title
