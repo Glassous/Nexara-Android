@@ -84,4 +84,10 @@
     <color name="md_theme_dark_inverseOnSurface">#1C1B1F</color>
     <color name="md_theme_dark_inverseSurface">#E6E1E5</color>
     <color name="md_theme_dark_inversePrimary">#6750A4</color>
+    
+    <!-- Message Colors -->
+    <color name="user_message_background">@color/md_theme_light_primaryContainer</color>
+    <color name="user_message_text">@color/md_theme_light_onPrimaryContainer</color>
+    <color name="ai_message_background">@color/md_theme_light_secondaryContainer</color>
+    <color name="ai_message_text">@color/md_theme_light_onSecondaryContainer</color>
 </resources>

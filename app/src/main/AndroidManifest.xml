@@ -44,6 +44,10 @@
             android:name=".VolcanoArkModelConfigActivity"
             android:exported="false"
             android:parentActivityName=".SettingsActivity" />
+        <activity
+            android:name=".ChatDetailActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
 
     </application>
 

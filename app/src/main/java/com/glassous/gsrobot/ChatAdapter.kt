@@ -90,6 +90,8 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         val imageUserMessage: ImageView = itemView.findViewById(R.id.imageUserMessage)
         val buttonCopyMessage: ImageButton = itemView.findViewById(R.id.buttonCopyMessage)
         val buttonCopyUserMessage: ImageButton = itemView.findViewById(R.id.buttonCopyUserMessage)
+        val buttonDetailMessage: ImageButton = itemView.findViewById(R.id.buttonDetailMessage)
+        val buttonDetailUserMessage: ImageButton = itemView.findViewById(R.id.buttonDetailUserMessage)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChatViewHolder {
@@ -131,6 +133,12 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
             holder.buttonCopyUserMessage.setOnClickListener {
                 copyToClipboard(holder.itemView.context, message.content)
             }
+            
+            // 设置用户消息详情按钮点击事件
+            holder.buttonDetailUserMessage.setOnClickListener {
+                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                holder.itemView.context.startActivity(intent)
+            }
         } else {
             // 显示AI消息
             holder.layoutUserMessage.visibility = View.GONE
@@ -146,6 +154,12 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
             // 设置复制按钮点击事件
             holder.buttonCopyMessage.setOnClickListener {
                 copyToClipboard(holder.itemView.context, message.content)
+            }
+            
+            // 设置AI消息详情按钮点击事件
+            holder.buttonDetailMessage.setOnClickListener {
+                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                holder.itemView.context.startActivity(intent)
             }
         }
     }

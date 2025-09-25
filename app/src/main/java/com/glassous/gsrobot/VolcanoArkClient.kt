@@ -141,9 +141,36 @@ class VolcanoArkClient(
         }
         jsonObject.put("messages", messagesArray)
         
-        // 火山方舟暂不支持联网搜索工具，但保留接口以备将来扩展
+        // 添加联网搜索工具配置
         if (enableWebSearch) {
-            Log.d(TAG, "Web search requested but not supported by Volcano Ark API")
+            val toolsArray = JSONArray()
+            val webSearchTool = JSONObject()
+            webSearchTool.put("type", "function")
+            
+            val functionObj = JSONObject()
+            functionObj.put("name", "web_search")
+            functionObj.put("description", "搜索互联网获取最新信息")
+            
+            val parametersObj = JSONObject()
+            parametersObj.put("type", "object")
+            
+            val propertiesObj = JSONObject()
+            val queryProperty = JSONObject()
+            queryProperty.put("type", "string")
+            queryProperty.put("description", "搜索查询关键词")
+            propertiesObj.put("query", queryProperty)
+            
+            parametersObj.put("properties", propertiesObj)
+            val requiredArray = JSONArray()
+            requiredArray.put("query")
+            parametersObj.put("required", requiredArray)
+            
+            functionObj.put("parameters", parametersObj)
+            webSearchTool.put("function", functionObj)
+            
+            toolsArray.put(webSearchTool)
+            jsonObject.put("tools", toolsArray)
+            Log.d(TAG, "Web search function tool enabled for Volcano Ark API")
         }
         
         // 添加其他参数 - 使用火山方舟配置的全局设置
@@ -210,9 +237,33 @@ class VolcanoArkClient(
                 if (choices != null && choices.length() > 0) {
                     val choice = choices.getJSONObject(0)
                     val delta = choice.optJSONObject("delta")
+                    val finishReason = choice.optString("finish_reason", "")
                     
                     if (delta != null) {
-                        return delta.optString("content", "")
+                        // 处理普通内容
+                        val content = delta.optString("content", "")
+                        if (content.isNotEmpty()) {
+                            return content
+                        }
+                        
+                        // 处理tool_calls（联网搜索等function calling）
+                        val toolCalls = delta.optJSONArray("tool_calls")
+                        if (toolCalls != null && toolCalls.length() > 0) {
+                            val toolCall = toolCalls.getJSONObject(0)
+                            val function = toolCall.optJSONObject("function")
+                            if (function != null) {
+                                val functionName = function.optString("name", "")
+                                if (functionName == "web_search") {
+                                    // 当检测到联网搜索工具调用时，返回提示信息
+                                    return "🔍 正在联网搜索..."
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 处理finish_reason为tool_calls的情况
+                    if (finishReason == "tool_calls") {
+                        return "\n\n📝 正在整理搜索结果..."
                     }
                 }
             }

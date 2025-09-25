@@ -68,6 +68,19 @@
                     android:paddingBottom="8dp">
 
                     <ImageButton
+                        android:id="@+id/buttonDetailUserMessage"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/ic_detail"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="查看详情"
+                        android:padding="6dp"
+                        android:scaleType="centerInside"
+                        app:tint="?attr/colorOnPrimaryContainer"
+                        android:alpha="0.7"
+                        android:layout_marginEnd="4dp" />
+
+                    <ImageButton
                         android:id="@+id/buttonCopyUserMessage"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
@@ -127,6 +140,19 @@
                     android:gravity="end"
                     android:paddingEnd="8dp"
                     android:paddingBottom="8dp">
+
+                    <ImageButton
+                        android:id="@+id/buttonDetailMessage"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/ic_detail"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="查看详情"
+                        android:padding="6dp"
+                        android:scaleType="centerInside"
+                        app:tint="?attr/colorOnSecondaryContainer"
+                        android:alpha="0.7"
+                        android:layout_marginEnd="4dp" />
 
                     <ImageButton
                         android:id="@+id/buttonCopyMessage"
