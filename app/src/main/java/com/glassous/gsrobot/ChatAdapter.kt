@@ -77,6 +77,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         val textUserMessage: TextView = itemView.findViewById(R.id.textUserMessage)
         val textAiMessage: TextView = itemView.findViewById(R.id.textAiMessage)
         val imageUserMessage: ImageView = itemView.findViewById(R.id.imageUserMessage)
+        val imageAiMessage: ImageView = itemView.findViewById(R.id.imageAiMessage)
         val buttonCopyMessage: ImageButton = itemView.findViewById(R.id.buttonCopyMessage)
         val buttonCopyUserMessage: ImageButton = itemView.findViewById(R.id.buttonCopyUserMessage)
         val buttonDetailMessage: ImageButton = itemView.findViewById(R.id.buttonDetailMessage)
@@ -152,9 +153,39 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     }
 
     private fun bindAiMessageContent(holder: ChatViewHolder, message: ChatMessage) {
-        val processedContent = preprocessLatex(message.content)
-        val markwon = getMarkwon(holder.itemView.context)
-        markwon.setMarkdown(holder.textAiMessage, processedContent)
+        // 处理文本内容
+        if (message.content.isNotEmpty()) {
+            val processedContent = preprocessLatex(message.content)
+            val markwon = getMarkwon(holder.itemView.context)
+            markwon.setMarkdown(holder.textAiMessage, processedContent)
+            holder.textAiMessage.visibility = View.VISIBLE
+        } else {
+            holder.textAiMessage.visibility = View.GONE
+        }
+        
+        // 处理图片内容
+        if (!message.imageUri.isNullOrEmpty()) {
+            try {
+                if (message.imageUri.startsWith("data:", ignoreCase = true)) {
+                    // Base64编码的图片
+                    val bitmap = decodeBase64ToBitmap(message.imageUri)
+                    holder.imageAiMessage.setImageBitmap(bitmap)
+                    holder.imageAiMessage.visibility = View.VISIBLE
+                } else if (message.imageUri.startsWith("http", ignoreCase = true)) {
+                    // 网络图片URL - 使用Glide加载
+                    com.bumptech.glide.Glide.with(holder.itemView.context)
+                        .load(message.imageUri)
+                        .into(holder.imageAiMessage)
+                    holder.imageAiMessage.visibility = View.VISIBLE
+                } else {
+                    holder.imageAiMessage.visibility = View.GONE
+                }
+            } catch (e: Exception) {
+                holder.imageAiMessage.visibility = View.GONE
+            }
+        } else {
+            holder.imageAiMessage.visibility = View.GONE
+        }
     }
 
     private fun decodeBase64ToBitmap(dataUrl: String): Bitmap {

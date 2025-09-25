@@ -56,6 +56,9 @@ dependencies {
     // JSON处理
     implementation("com.google.code.gson:gson:2.10.1")
     
+    // 图片加载
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    
     // Markdown支持
     implementation("io.noties.markwon:core:4.6.2") {
         exclude(group = "org.jetbrains", module = "annotations-java5")

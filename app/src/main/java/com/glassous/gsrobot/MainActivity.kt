@@ -716,6 +716,64 @@ class MainActivity : AppCompatActivity() {
 
         // 根据当前选择的模型类型调用相应的图片生成API
         when {
+            // 检查是否选择了阿里云百炼模型
+            alibabaCloudBailianClient != null && selectedGroup != null && 
+            (selectedGroup!!.name.contains("阿里云百炼", ignoreCase = true) || 
+             selectedGroup!!.name.contains("alibaba", ignoreCase = true) || 
+             selectedGroup!!.name.contains("bailian", ignoreCase = true)) -> {
+                // 使用阿里云百炼图片生成
+                val apiKey = selectedGroup?.apiKey ?: ""
+                Log.d("GSRobot", "Using Alibaba Cloud Bailian for image generation with model: qwen-image-plus")
+                
+                coroutineScope.launch {
+                    try {
+                        alibabaCloudBailianClient!!.generateImage(prompt, apiKey).collect { imageResult ->
+                            // 检查结果是否为URL（成功）还是错误消息
+                            if (imageResult.startsWith("http", ignoreCase = true)) {
+                                // 成功生成图片，更新消息显示图片
+                                val imageMessage = ChatMessage(
+                                    content = "已为您生成图片",
+                                    isFromUser = false,
+                                    imageUri = imageResult
+                                )
+                                chatAdapter.updateLastMessage(imageMessage)
+                                sessionManager.saveMessage(imageMessage)
+                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation successful")
+                            } else if (imageResult.startsWith("Error:", ignoreCase = true)) {
+                                // 生成失败，显示错误消息
+                                val errorMessage = ChatMessage(
+                                    content = "图片生成失败：${imageResult.substring(6)}",
+                                    isFromUser = false
+                                )
+                                chatAdapter.updateLastMessage(errorMessage)
+                                sessionManager.saveMessage(errorMessage)
+                                Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed: $imageResult")
+                            } else if (imageResult.contains("正在处理中") || imageResult.contains("任务已提交")) {
+                                // 保持原有的"正在生成图片，请稍候..."消息，不更新
+                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
+                            } else {
+                                // 其他状态更新消息 - 只更新内容，不保存到数据库
+                                val statusMessage = ChatMessage(
+                                    content = imageResult,
+                                    isFromUser = false
+                                )
+                                chatAdapter.updateLastMessage(statusMessage)
+                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
+                            }
+                            scrollToBottom()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed", e)
+                        val errorMessage = ChatMessage(
+                            content = "图片生成失败：${e.message}",
+                            isFromUser = false
+                        )
+                        chatAdapter.updateLastMessage(errorMessage)
+                        sessionManager.saveMessage(errorMessage)
+                        scrollToBottom()
+                    }
+                }
+            }
             // 检查是否选择了Google AI模型
             googleAIClient != null && selectedGroup != null && selectedGroup!!.baseUrl.isEmpty() -> {
                 // 使用Google AI图片生成

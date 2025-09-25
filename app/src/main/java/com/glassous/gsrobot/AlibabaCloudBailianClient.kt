@@ -26,6 +26,8 @@ class AlibabaCloudBailianClient(private val context: Context) {
     companion object {
         private const val TAG = "AlibabaCloudBailianClient"
         private const val BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        private const val IMAGE_GENERATION_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis"
+        private const val TASK_STATUS_URL = "https://dashscope.aliyuncs.com/api/v1/tasks"
         private const val PREFS_NAME = "alibaba_cloud_bailian_model_config"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_TEMPERATURE_ENABLED = "temperature_enabled"
@@ -451,5 +453,188 @@ class AlibabaCloudBailianClient(private val context: Context) {
         requestJson.put("parameters", parametersObject)
         
         return requestJson.toString()
+    }
+
+    /**
+     * 生成图片
+     * @param prompt 图片描述提示词
+     * @param apiKey API密钥
+     * @param model 模型名称，默认为 qwen-image-plus
+     * @param size 图片尺寸，默认为 1328*1328
+     * @param n 生成图片数量，默认为 1
+     * @return Flow<String> 返回图片URL或错误信息
+     */
+    fun generateImage(
+        prompt: String,
+        apiKey: String,
+        model: String = "qwen-image-plus",
+        size: String = "1328*1328",
+        n: Int = 1
+    ): Flow<String> = flow {
+        if (apiKey.isNullOrEmpty()) {
+            emit("Error: 阿里云百炼 API key 未配置")
+            return@flow
+        }
+
+        if (prompt.isBlank()) {
+            emit("Error: 图片描述不能为空")
+            return@flow
+        }
+
+        try {
+            // 第一步：提交图片生成任务
+            val taskId = submitImageGenerationTask(prompt, apiKey, model, size, n)
+            if (taskId.startsWith("Error:")) {
+                emit(taskId)
+                return@flow
+            }
+
+            Log.d(TAG, "Image generation task submitted with ID: $taskId")
+            emit("图片生成任务已提交，正在处理中...")
+
+            // 第二步：轮询任务状态直到完成
+            val result = pollTaskStatus(taskId, apiKey)
+            emit(result)
+
+        } catch (e: IOException) {
+            Log.e(TAG, "Network error during image generation: ${e.message}")
+            emit("Error: 网络连接失败 - ${e.message}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error during image generation: ${e.message}")
+            emit("Error: 图片生成失败 - ${e.message}")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * 提交图片生成任务
+     */
+    private suspend fun submitImageGenerationTask(
+        prompt: String,
+        apiKey: String,
+        model: String,
+        size: String,
+        n: Int
+    ): String {
+        val requestJson = JSONObject().apply {
+            put("model", model)
+            put("input", JSONObject().apply {
+                put("prompt", prompt)
+            })
+            put("parameters", JSONObject().apply {
+                put("size", size)
+                put("n", n)
+                put("prompt_extend", true)
+                put("watermark", true)
+            })
+        }
+
+        val requestBody = requestJson.toString()
+        Log.d(TAG, "Image generation request body: $requestBody")
+
+        val request = Request.Builder()
+            .url(IMAGE_GENERATION_URL)
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("X-DashScope-Async", "enable")
+            .build()
+
+        val response = client.newCall(request).execute()
+
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: "Unknown error"
+            Log.e(TAG, "Image generation task submission failed: ${response.code} - $errorBody")
+            return "Error: 图片生成任务提交失败 (${response.code}): $errorBody"
+        }
+
+        val responseString = response.body?.string() ?: ""
+        Log.d(TAG, "Image generation task submission response: $responseString")
+
+        return try {
+            val jsonObject = JSONObject(responseString)
+            val output = jsonObject.optJSONObject("output")
+            val taskId = output?.optString("task_id")
+            
+            if (taskId.isNullOrEmpty()) {
+                "Error: 无法获取任务ID"
+            } else {
+                taskId
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing task submission response: ${e.message}")
+            "Error: 响应解析失败 - ${e.message}"
+        }
+    }
+
+    /**
+     * 轮询任务状态直到完成
+     */
+    private suspend fun pollTaskStatus(taskId: String, apiKey: String): String {
+        val maxAttempts = 60 // 最多轮询60次
+        val pollInterval = 2000L // 每2秒轮询一次
+        
+        repeat(maxAttempts) { attempt ->
+            try {
+                val request = Request.Builder()
+                    .url("$TASK_STATUS_URL/$taskId")
+                    .get()
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: "Unknown error"
+                    Log.e(TAG, "Task status check failed: ${response.code} - $errorBody")
+                    return "Error: 任务状态查询失败 (${response.code}): $errorBody"
+                }
+
+                val responseString = response.body?.string() ?: ""
+                Log.d(TAG, "Task status response (attempt ${attempt + 1}): $responseString")
+
+                val jsonObject = JSONObject(responseString)
+                val output = jsonObject.optJSONObject("output")
+                val taskStatus = output?.optString("task_status")
+
+                when (taskStatus) {
+                    "SUCCEEDED" -> {
+                        // 任务成功完成，提取图片URL
+                        val results = output.optJSONArray("results")
+                        if (results != null && results.length() > 0) {
+                            val firstResult = results.getJSONObject(0)
+                            val imageUrl = firstResult.optString("url")
+                            if (imageUrl.isNotEmpty()) {
+                                Log.d(TAG, "Image generation completed successfully: $imageUrl")
+                                return imageUrl
+                            }
+                        }
+                        return "Error: 无法获取生成的图片URL"
+                    }
+                    "FAILED" -> {
+                        val message = output?.optString("message", "未知错误")
+                        Log.e(TAG, "Image generation task failed: $message")
+                        return "Error: 图片生成失败 - $message"
+                    }
+                    "RUNNING", "PENDING" -> {
+                        // 任务仍在进行中，继续轮询
+                        Log.d(TAG, "Task status: $taskStatus, continuing to poll...")
+                        kotlinx.coroutines.delay(pollInterval)
+                    }
+                    else -> {
+                        Log.w(TAG, "Unknown task status: $taskStatus")
+                        kotlinx.coroutines.delay(pollInterval)
+                    }
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during task status polling: ${e.message}")
+                if (attempt == maxAttempts - 1) {
+                    return "Error: 任务状态轮询失败 - ${e.message}"
+                }
+                kotlinx.coroutines.delay(pollInterval)
+            }
+        }
+        
+        return "Error: 图片生成超时，请稍后重试"
     }
 }
