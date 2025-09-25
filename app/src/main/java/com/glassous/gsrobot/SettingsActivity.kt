@@ -244,7 +244,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         buttonAliyunConfig.setOnClickListener {
-            Toast.makeText(this, "阿里云百炼配置功能敬请期待", Toast.LENGTH_SHORT).show()
+            val intent = Intent(this, AlibabaCloudBailianModelConfigActivity::class.java)
+            startActivity(intent)
         }
         
         buttonVolcanoConfig.setOnClickListener {
@@ -300,6 +301,13 @@ class SettingsActivity : AppCompatActivity() {
         val volcanoArkGroupsConfigJson = volcanoArkPrefs.getString("groups_config", "") ?: ""
         if (volcanoArkGroupsConfigJson.isNotEmpty()) {
             allGroups.addAll(ConfigManager.jsonToGroupConfigList(volcanoArkGroupsConfigJson))
+        }
+        
+        // 加载阿里云百炼模型配置
+        val alibabaCloudBailianPrefs = getSharedPreferences("alibaba_cloud_bailian_model_config", Context.MODE_PRIVATE)
+        val alibabaCloudBailianGroupsConfigJson = alibabaCloudBailianPrefs.getString("groups_config", "") ?: ""
+        if (alibabaCloudBailianGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(alibabaCloudBailianGroupsConfigJson))
         }
         
         currentGroups = allGroups

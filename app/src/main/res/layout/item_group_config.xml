@@ -79,7 +79,7 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- Base URL 输入框 -->
+            <!-- Base URL 输入框 - 隐藏 -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/textInputLayoutBaseUrl"
                 android:layout_width="match_parent"
@@ -87,6 +87,7 @@
                 android:layout_marginBottom="12dp"
                 android:hint="API Base URL"
                 app:helperText="例如: https://api.openai.com/v1"
+                android:visibility="gone"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText

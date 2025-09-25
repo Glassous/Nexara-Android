@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity() {
     private var googleAIClient: GoogleAIClient? = null
     private var anthropicAIClient: AnthropicAIClient? = null
     private var volcanoArkClient: VolcanoArkClient? = null
+    private var alibabaCloudBailianClient: AlibabaCloudBailianClient? = null
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
     // 输入建议数据
@@ -252,6 +253,14 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "Loaded Volcano Ark groups from config system")
         }
 
+        // 加载阿里云百炼模型配置
+        val alibabaCloudBailianConfigPrefs = getSharedPreferences("alibaba_cloud_bailian_model_config", Context.MODE_PRIVATE)
+        val alibabaCloudBailianGroupsConfigJson = alibabaCloudBailianConfigPrefs.getString("groups_config", "") ?: ""
+        if (alibabaCloudBailianGroupsConfigJson.isNotEmpty()) {
+            allGroups.addAll(ConfigManager.jsonToGroupConfigList(alibabaCloudBailianGroupsConfigJson))
+            Log.d("MainActivity", "Loaded Alibaba Cloud Bailian groups from config system")
+        }
+
         currentGroups = allGroups
         Log.d("MainActivity", "Loaded ${currentGroups.size} total groups")
 
@@ -301,6 +310,7 @@ class MainActivity : AppCompatActivity() {
         googleAIClient = null
         anthropicAIClient = null
         volcanoArkClient = null
+        alibabaCloudBailianClient = null
 
         Log.d("MainActivity", "initializeAIClients: selectedGroup = ${selectedGroup?.name}, selectedModel = ${selectedModel?.name}")
 
@@ -330,6 +340,16 @@ class MainActivity : AppCompatActivity() {
                         Log.d("MainActivity", "Volcano Ark client initialized with group: ${selectedGroup!!.name}, base URL: $baseUrl")
                     } else {
                         Log.d("MainActivity", "Volcano Ark client not initialized - missing configuration")
+                    }
+                }
+                // 判断是否为阿里云百炼模型
+                groupName.contains("阿里云百炼") || groupName.contains("alibaba") || groupName.contains("bailian") -> {
+                    // 阿里云百炼模型
+                    if (apiKey.isNotEmpty()) {
+                        alibabaCloudBailianClient = AlibabaCloudBailianClient(this)
+                        Log.d("MainActivity", "Alibaba Cloud Bailian client initialized with group: ${selectedGroup!!.name}")
+                    } else {
+                        Log.d("MainActivity", "Alibaba Cloud Bailian client not initialized - missing API key")
                     }
                 }
                 // 判断是否为Google AI模型（通过检查baseUrl是否为空来判断）
@@ -648,7 +668,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun simulateAiResponse() {
         // 检查是否有可用的客户端
-        if (openAIClient == null && googleAIClient == null && anthropicAIClient == null && volcanoArkClient == null) {
+        if (openAIClient == null && googleAIClient == null && anthropicAIClient == null && volcanoArkClient == null && alibabaCloudBailianClient == null) {
             val errorMessage = ChatMessage(
                 content = "请先在设置中配置AI API",
                 isFromUser = false
@@ -766,6 +786,27 @@ class MainActivity : AppCompatActivity() {
                     val streaming = volcanoArkConfigPrefs.getBoolean("streaming", true)
 
                     volcanoArkClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
+                        .collect { chunk ->
+                            if (isFirstChunk) {
+                                responseContent = chunk
+                                isFirstChunk = false
+                            } else {
+                                responseContent += chunk
+                            }
+
+                            val aiMessage = ChatMessage(
+                                content = responseContent,
+                                isFromUser = false
+                            )
+
+                            chatAdapter.updateLastMessage(aiMessage)
+                            scrollToBottom()
+                        }
+                } else if (alibabaCloudBailianClient != null) {
+                    // 使用阿里云百炼客户端
+                    val apiKey = selectedGroup?.apiKey ?: ""
+
+                    alibabaCloudBailianClient!!.sendChatRequest(modelName, filteredMessages, apiKey, isWebSearchEnabled)
                         .collect { chunk ->
                             if (isFirstChunk) {
                                 responseContent = chunk
