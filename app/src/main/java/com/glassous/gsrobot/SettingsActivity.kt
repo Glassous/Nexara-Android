@@ -33,9 +33,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var buttonModelConfig: MaterialButton
     private lateinit var buttonGoogleAIConfig: MaterialButton
     private lateinit var buttonAnthropicConfig: MaterialButton
-    private lateinit var buttonXAIConfig: MaterialButton
-    private lateinit var buttonDeepSeekConfig: MaterialButton
-    private lateinit var buttonMoonshotConfig: MaterialButton
     private lateinit var buttonAliyunConfig: MaterialButton
     private lateinit var buttonVolcanoConfig: MaterialButton
     
@@ -75,9 +72,6 @@ class SettingsActivity : AppCompatActivity() {
         buttonModelConfig = findViewById(R.id.buttonModelConfig)
         buttonGoogleAIConfig = findViewById(R.id.buttonGoogleAIConfig)
         buttonAnthropicConfig = findViewById(R.id.buttonAnthropicConfig)
-        buttonXAIConfig = findViewById(R.id.buttonXAIConfig)
-        buttonDeepSeekConfig = findViewById(R.id.buttonDeepSeekConfig)
-        buttonMoonshotConfig = findViewById(R.id.buttonMoonshotConfig)
         buttonAliyunConfig = findViewById(R.id.buttonAliyunConfig)
         buttonVolcanoConfig = findViewById(R.id.buttonVolcanoConfig)
         
@@ -231,18 +225,6 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun setupNewAIConfigButtons() {
-        buttonXAIConfig.setOnClickListener {
-            Toast.makeText(this, "xAI配置功能敬请期待", Toast.LENGTH_SHORT).show()
-        }
-        
-        buttonDeepSeekConfig.setOnClickListener {
-            Toast.makeText(this, "DeepSeek配置功能敬请期待", Toast.LENGTH_SHORT).show()
-        }
-        
-        buttonMoonshotConfig.setOnClickListener {
-            Toast.makeText(this, "Moonshot配置功能敬请期待", Toast.LENGTH_SHORT).show()
-        }
-        
         buttonAliyunConfig.setOnClickListener {
             val intent = Intent(this, AlibabaCloudBailianModelConfigActivity::class.java)
             startActivity(intent)

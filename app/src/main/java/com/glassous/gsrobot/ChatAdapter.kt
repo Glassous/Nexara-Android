@@ -22,63 +22,52 @@ import io.noties.markwon.html.HtmlPlugin
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 
-class ChatAdapter(private val messages: MutableList<ChatMessage>) : 
+class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
-    
+
     private var markwon: Markwon? = null
-    
+
+    // 定义一个 “payload” (有效载荷)，用来标识这只是一次内容更新
+    companion object {
+        private const val PAYLOAD_CONTENT_UPDATE = "PAYLOAD_CONTENT_UPDATE"
+    }
+
     private fun getMarkwon(context: Context): Markwon {
         if (markwon == null) {
             markwon = Markwon.builder(context)
-                .usePlugin(MarkwonInlineParserPlugin.create()) // 内联解析器支持
-                .usePlugin(TablePlugin.create(context)) // 表格支持
+                .usePlugin(MarkwonInlineParserPlugin.create())
+                .usePlugin(TablePlugin.create(context))
                 .usePlugin(JLatexMathPlugin.create(42f) { builder ->
-                    builder.inlinesEnabled(true) // 启用单$符号的内联LaTeX
-                }) // LaTeX数学公式支持
-                .usePlugin(HtmlPlugin.create()) // HTML支持
-                .usePlugin(ImagesPlugin.create()) // 图片支持
+                    builder.inlinesEnabled(true)
+                })
+                .usePlugin(HtmlPlugin.create())
+                .usePlugin(ImagesPlugin.create())
                 .build()
         }
         return markwon!!
     }
-    
-    /**
-     * 预处理LaTeX公式，将单$转换为双$$以确保正确渲染
-     * 避免只有一侧成功适配的问题
-     */
+
     private fun preprocessLatex(content: String): String {
         var result = content
-        
-        // 首先保护已经存在的双$$符号，避免重复处理
         val doubleDollarPlaceholder = "DOUBLE_DOLLAR_PLACEHOLDER"
         val doubleDollarPattern = Regex("""\$\$([^$]*?)\$\$""")
         val doubleDollarMatches = mutableListOf<String>()
-        
-        // 保存双$$内容并用占位符替换
         result = doubleDollarPattern.replace(result) { matchResult ->
             doubleDollarMatches.add(matchResult.value)
             "$doubleDollarPlaceholder${doubleDollarMatches.size - 1}"
         }
-        
-        // 处理单$符号，确保成对匹配
-        // 这个正则表达式匹配非转义的单$符号对
         val singleDollarPattern = Regex("""(?<!\\)\$(?!\$)([^$\n]*?)(?<!\\)\$(?!\$)""")
-        
         result = singleDollarPattern.replace(result) { matchResult ->
             val mathContent = matchResult.groupValues[1].trim()
-            // 只有当内容不为空时才转换为双$$
             if (mathContent.isNotEmpty()) {
                 "$$${mathContent}$$"
             } else {
-                matchResult.value // 保持原样
+                matchResult.value
             }
         }
-        
-        // 恢复双$$内容
         doubleDollarMatches.forEachIndexed { index, originalMatch ->
             result = result.replace("$doubleDollarPlaceholder$index", originalMatch)
         }
-        
         return result
     }
 
@@ -102,21 +91,16 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
 
     override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
         val message = messages[position]
-        
+
         if (message.isFromUser) {
-            // 显示用户消息
             holder.layoutUserMessage.visibility = View.VISIBLE
             holder.layoutAiMessage.visibility = View.GONE
-            
-            // 处理文本消息
             if (message.content.isNotEmpty()) {
                 holder.textUserMessage.text = message.content
                 holder.textUserMessage.visibility = View.VISIBLE
             } else {
                 holder.textUserMessage.visibility = View.GONE
             }
-            
-            // 处理图片消息
             if (!message.imageUri.isNullOrEmpty()) {
                 try {
                     val bitmap = decodeBase64ToBitmap(message.imageUri)
@@ -128,44 +112,52 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
             } else {
                 holder.imageUserMessage.visibility = View.GONE
             }
-            
-            // 设置用户消息复制按钮点击事件
             holder.buttonCopyUserMessage.setOnClickListener {
                 copyToClipboard(holder.itemView.context, message.content)
             }
-            
-            // 设置用户消息详情按钮点击事件
             holder.buttonDetailUserMessage.setOnClickListener {
-                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
-                holder.itemView.context.startActivity(intent)
+                // val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                // holder.itemView.context.startActivity(intent)
             }
         } else {
-            // 显示AI消息
             holder.layoutUserMessage.visibility = View.GONE
             holder.layoutAiMessage.visibility = View.VISIBLE
-            
-            // 预处理LaTeX公式，将单$转换为双$$
-            val processedContent = preprocessLatex(message.content)
-            
-            // 使用Markwon渲染Markdown格式的AI消息
-            val markwon = getMarkwon(holder.itemView.context)
-            markwon.setMarkdown(holder.textAiMessage, processedContent)
-            
-            // 设置复制按钮点击事件
+            bindAiMessageContent(holder, message)
             holder.buttonCopyMessage.setOnClickListener {
                 copyToClipboard(holder.itemView.context, message.content)
             }
-            
-            // 设置AI消息详情按钮点击事件
             holder.buttonDetailMessage.setOnClickListener {
-                val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
-                holder.itemView.context.startActivity(intent)
+                // val intent = ChatDetailActivity.createIntent(holder.itemView.context, message)
+                // holder.itemView.context.startActivity(intent)
             }
         }
     }
-    
+
+    override fun onBindViewHolder(holder: ChatViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.contains(PAYLOAD_CONTENT_UPDATE)) {
+            val message = messages[position]
+            if (!message.isFromUser) {
+                bindAiMessageContent(holder, message)
+            }
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    fun updateLastMessage(message: ChatMessage) {
+        if (messages.isNotEmpty()) {
+            messages[messages.size - 1] = message
+            notifyItemChanged(messages.size - 1, PAYLOAD_CONTENT_UPDATE)
+        }
+    }
+
+    private fun bindAiMessageContent(holder: ChatViewHolder, message: ChatMessage) {
+        val processedContent = preprocessLatex(message.content)
+        val markwon = getMarkwon(holder.itemView.context)
+        markwon.setMarkdown(holder.textAiMessage, processedContent)
+    }
+
     private fun decodeBase64ToBitmap(dataUrl: String): Bitmap {
-        // 移除data URL前缀 (data:image/jpeg;base64,)
         val base64String = dataUrl.substringAfter("base64,")
         val decodedBytes = Base64.decode(base64String, Base64.DEFAULT)
         return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
@@ -190,14 +182,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         messages.addAll(newMessages)
         notifyItemRangeInserted(startPosition, newMessages.size)
     }
-    
-    fun updateLastMessage(message: ChatMessage) {
-        if (messages.isNotEmpty()) {
-            messages[messages.size - 1] = message
-            notifyItemChanged(messages.size - 1)
-        }
-    }
-    
+
     private fun copyToClipboard(context: Context, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("AI回复", text)

@@ -317,56 +317,7 @@
                     app:iconGravity="start"
                     app:iconPadding="12dp" />
 
-                <!-- xAI配置按钮 -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/buttonXAIConfig"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginHorizontal="16dp"
-                    android:layout_marginBottom="8dp"
-                    android:text="xAI配置"
-                    android:textSize="16sp"
-                    android:gravity="start|center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconGravity="start"
-                    app:iconPadding="12dp" />
 
-                <!-- DeepSeek配置按钮 -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/buttonDeepSeekConfig"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginHorizontal="16dp"
-                    android:layout_marginBottom="8dp"
-                    android:text="DeepSeek配置"
-                    android:textSize="16sp"
-                    android:gravity="start|center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconGravity="start"
-                    app:iconPadding="12dp" />
-
-                <!-- Moonshot配置按钮 -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/buttonMoonshotConfig"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginHorizontal="16dp"
-                    android:layout_marginBottom="8dp"
-                    android:text="Moonshot配置"
-                    android:textSize="16sp"
-                    android:gravity="start|center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconGravity="start"
-                    app:iconPadding="12dp" />
 
                 <!-- 阿里云百炼配置按钮 -->
                 <com.google.android.material.button.MaterialButton
