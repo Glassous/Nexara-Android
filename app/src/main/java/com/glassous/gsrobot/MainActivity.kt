@@ -711,10 +711,11 @@ class MainActivity : AppCompatActivity() {
         scrollToBottom()
         updateWelcomeVisibility()
 
-        // 添加加载中的消息
+        // 添加Loading indicator消息
         val loadingMessage = ChatMessage(
-            content = "正在生成图片，请稍候...",
-            isFromUser = false
+            content = "",
+            isFromUser = false,
+            isLoading = true
         )
         chatAdapter.addMessage(loadingMessage)
         scrollToBottom()
@@ -739,7 +740,8 @@ class MainActivity : AppCompatActivity() {
                                         content = "已为您生成图片",
                                         isFromUser = false,
                                         imageUri = imageResult,
-                                        localImagePath = localImagePath
+                                        localImagePath = localImagePath,
+                                        isLoading = false
                                     )
                                     chatAdapter.updateLastMessage(imageMessage)
                                     sessionManager.saveMessage(imageMessage)
@@ -749,7 +751,8 @@ class MainActivity : AppCompatActivity() {
                                 // 生成失败或状态更新，显示消息
                                 val statusMessage = ChatMessage(
                                     content = imageResult,
-                                    isFromUser = false
+                                    isFromUser = false,
+                                    isLoading = false
                                 )
                                 chatAdapter.updateLastMessage(statusMessage)
                                 if (imageResult.contains("失败") || imageResult.contains("错误")) {
@@ -763,7 +766,8 @@ class MainActivity : AppCompatActivity() {
                         Log.e("GSRobot", "Volcano Ark image generation failed", e)
                         val errorMessage = ChatMessage(
                             content = "图片生成失败：${e.message}",
-                            isFromUser = false
+                            isFromUser = false,
+                            isLoading = false
                         )
                         chatAdapter.updateLastMessage(errorMessage)
                         sessionManager.saveMessage(errorMessage)
@@ -792,7 +796,8 @@ class MainActivity : AppCompatActivity() {
                                         content = "已为您生成图片",
                                         isFromUser = false,
                                         imageUri = imageResult,
-                                        localImagePath = localImagePath
+                                        localImagePath = localImagePath,
+                                        isLoading = false
                                     )
                                     chatAdapter.updateLastMessage(imageMessage)
                                     sessionManager.saveMessage(imageMessage)
@@ -802,19 +807,21 @@ class MainActivity : AppCompatActivity() {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(
                                     content = "图片生成失败：${imageResult.substring(6)}",
-                                    isFromUser = false
+                                    isFromUser = false,
+                                    isLoading = false
                                 )
                                 chatAdapter.updateLastMessage(errorMessage)
                                 sessionManager.saveMessage(errorMessage)
                                 Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed: $imageResult")
                             } else if (imageResult.contains("正在处理中") || imageResult.contains("任务已提交")) {
-                                // 保持原有的"正在生成图片，请稍候..."消息，不更新
+                                // 保持Loading indicator状态，不更新消息
                                 Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
                             } else {
                                 // 其他状态更新消息 - 只更新内容，不保存到数据库
                                 val statusMessage = ChatMessage(
                                     content = imageResult,
-                                    isFromUser = false
+                                    isFromUser = false,
+                                    isLoading = false
                                 )
                                 chatAdapter.updateLastMessage(statusMessage)
                                 Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
@@ -825,7 +832,8 @@ class MainActivity : AppCompatActivity() {
                         Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed", e)
                         val errorMessage = ChatMessage(
                             content = "图片生成失败：${e.message}",
-                            isFromUser = false
+                            isFromUser = false,
+                            isLoading = false
                         )
                         chatAdapter.updateLastMessage(errorMessage)
                         sessionManager.saveMessage(errorMessage)
@@ -851,7 +859,8 @@ class MainActivity : AppCompatActivity() {
                                         content = "已为您生成图片：",
                                         isFromUser = false,
                                         imageUri = imageResult,
-                                        localImagePath = localImagePath
+                                        localImagePath = localImagePath,
+                                        isLoading = false
                                     )
                                     chatAdapter.updateLastMessage(imageMessage)
                                     sessionManager.saveMessage(imageMessage)
@@ -861,7 +870,8 @@ class MainActivity : AppCompatActivity() {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(
                                     content = "图片生成失败：$imageResult",
-                                    isFromUser = false
+                                    isFromUser = false,
+                                    isLoading = false
                                 )
                                 chatAdapter.updateLastMessage(errorMessage)
                                 sessionManager.saveMessage(errorMessage)
@@ -873,7 +883,8 @@ class MainActivity : AppCompatActivity() {
                         Log.e("GSRobot", "Google AI image generation failed", e)
                         val errorMessage = ChatMessage(
                             content = "图片生成失败：${e.message}",
-                            isFromUser = false
+                            isFromUser = false,
+                            isLoading = false
                         )
                         chatAdapter.updateLastMessage(errorMessage)
                         sessionManager.saveMessage(errorMessage)
@@ -903,7 +914,8 @@ class MainActivity : AppCompatActivity() {
                                         content = "已为您生成图片：",
                                         isFromUser = false,
                                         imageUri = imageResult,
-                                        localImagePath = localImagePath
+                                        localImagePath = localImagePath,
+                                        isLoading = false
                                     )
                                     chatAdapter.updateLastMessage(imageMessage)
                                     sessionManager.saveMessage(imageMessage)
@@ -913,7 +925,8 @@ class MainActivity : AppCompatActivity() {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(
                                     content = "图片生成失败：$imageResult",
-                                    isFromUser = false
+                                    isFromUser = false,
+                                    isLoading = false
                                 )
                                 chatAdapter.updateLastMessage(errorMessage)
                                 sessionManager.saveMessage(errorMessage)
@@ -925,7 +938,8 @@ class MainActivity : AppCompatActivity() {
                         Log.e("GSRobot", "OpenAI image generation failed", e)
                         val errorMessage = ChatMessage(
                             content = "图片生成失败：${e.message}",
-                            isFromUser = false
+                            isFromUser = false,
+                            isLoading = false
                         )
                         chatAdapter.updateLastMessage(errorMessage)
                         sessionManager.saveMessage(errorMessage)
@@ -937,7 +951,8 @@ class MainActivity : AppCompatActivity() {
                 // 没有可用的图片生成客户端
                 val errorMessage = ChatMessage(
                     content = "图片生成功能不可用，请检查AI模型配置",
-                    isFromUser = false
+                    isFromUser = false,
+                    isLoading = false
                 )
                 chatAdapter.updateLastMessage(errorMessage)
                 sessionManager.saveMessage(errorMessage)

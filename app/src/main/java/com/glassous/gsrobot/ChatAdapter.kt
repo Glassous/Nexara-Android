@@ -78,6 +78,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         val textAiMessage: TextView = itemView.findViewById(R.id.textAiMessage)
         val imageUserMessage: ImageView = itemView.findViewById(R.id.imageUserMessage)
         val imageAiMessage: ImageView = itemView.findViewById(R.id.imageAiMessage)
+        val loadingIndicatorAiMessage: com.google.android.material.loadingindicator.LoadingIndicator = itemView.findViewById(R.id.loadingIndicatorAiMessage)
         val buttonCopyMessage: ImageButton = itemView.findViewById(R.id.buttonCopyMessage)
         val buttonCopyUserMessage: ImageButton = itemView.findViewById(R.id.buttonCopyUserMessage)
         val buttonDetailMessage: ImageButton = itemView.findViewById(R.id.buttonDetailMessage)
@@ -153,6 +154,16 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     }
 
     private fun bindAiMessageContent(holder: ChatViewHolder, message: ChatMessage) {
+        // 处理Loading状态
+        if (message.isLoading) {
+            holder.loadingIndicatorAiMessage.visibility = View.VISIBLE
+            holder.textAiMessage.visibility = View.GONE
+            holder.imageAiMessage.visibility = View.GONE
+            return
+        } else {
+            holder.loadingIndicatorAiMessage.visibility = View.GONE
+        }
+        
         // 处理文本内容
         if (message.content.isNotEmpty()) {
             val processedContent = preprocessLatex(message.content)
