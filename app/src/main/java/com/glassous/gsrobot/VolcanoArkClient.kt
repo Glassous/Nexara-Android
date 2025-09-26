@@ -296,4 +296,99 @@ class VolcanoArkClient(
         
         return "解析火山方舟响应失败"
     }
+
+    /**
+     * 发送图片生成请求到火山方舟 API
+     * @param model 模型名称 (例如: doubao-seedream-4-0-250828)
+     * @param prompt 图片生成提示词
+     * @param size 图片尺寸 (例如: "2K", "1K", "512x512")
+     * @return 图片生成结果的Flow
+     */
+    suspend fun generateImage(
+        model: String,
+        prompt: String,
+        size: String = "2K"
+    ): Flow<String> = flow {
+        try {
+            val url = URL("$baseUrl/images/generations")
+            val connection = url.openConnection() as HttpURLConnection
+            
+            // 设置请求头 - 火山方舟使用Bearer Token认证
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.doOutput = true
+            
+            // 构建请求体
+            val requestBody = buildImageGenerationRequestBody(model, prompt, size)
+            Log.d(TAG, "Image generation request body: $requestBody")
+            
+            // 发送请求
+            val writer = OutputStreamWriter(connection.outputStream)
+            writer.write(requestBody)
+            writer.flush()
+            writer.close()
+            
+            val responseCode = connection.responseCode
+            Log.d(TAG, "Image generation response code: $responseCode")
+            
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                val response = reader.readText()
+                Log.d(TAG, "Image generation response: $response")
+                
+                val imageUrl = parseImageGenerationResponse(response)
+                if (imageUrl.isNotEmpty()) {
+                    emit(imageUrl)
+                } else {
+                    emit("图片生成失败：无法解析响应")
+                }
+                
+                reader.close()
+            } else {
+                val errorReader = BufferedReader(InputStreamReader(connection.errorStream))
+                val errorResponse = errorReader.readText()
+                Log.e(TAG, "Image generation error response: $errorResponse")
+                errorReader.close()
+                emit("火山方舟图片生成API请求失败: $errorResponse")
+            }
+            
+            connection.disconnect()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating image", e)
+            emit("火山方舟图片生成网络请求失败: ${e.message}")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * 构建火山方舟图片生成API请求体
+     */
+    private fun buildImageGenerationRequestBody(model: String, prompt: String, size: String): String {
+        val jsonObject = JSONObject()
+        jsonObject.put("model", model)
+        jsonObject.put("prompt", prompt)
+        jsonObject.put("size", size)
+        
+        return jsonObject.toString()
+    }
+
+    /**
+     * 解析图片生成响应，提取图片URL
+     */
+    private fun parseImageGenerationResponse(response: String): String {
+        try {
+            val jsonObject = JSONObject(response)
+            val data = jsonObject.optJSONArray("data")
+            
+            if (data != null && data.length() > 0) {
+                val imageData = data.getJSONObject(0)
+                return imageData.optString("url", "")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing image generation response", e)
+        }
+        
+        return ""
+    }
 }

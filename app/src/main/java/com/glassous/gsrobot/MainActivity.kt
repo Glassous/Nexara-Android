@@ -721,6 +721,56 @@ class MainActivity : AppCompatActivity() {
 
         // 根据当前选择的模型类型调用相应的图片生成API
         when {
+            // 检查是否选择了火山方舟模型 - 只要是火山方舟组的任何模型都使用火山方舟API
+            volcanoArkClient != null -> {
+                // 使用火山方舟图片生成
+                val modelName = selectedModel?.name ?: "doubao-seedream-4-0-250828"
+                Log.d("GSRobot", "Using Volcano Ark for image generation with model: $modelName")
+                
+                coroutineScope.launch {
+                    try {
+                        volcanoArkClient!!.generateImage(modelName, prompt, "2K").collect { imageResult ->
+                            // 检查结果是否为URL（成功）还是错误消息
+                            if (imageResult.startsWith("http", ignoreCase = true)) {
+                                // 成功生成图片，下载并保存到本地
+                                coroutineScope.launch {
+                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
+                                    val imageMessage = ChatMessage(
+                                        content = "已为您生成图片",
+                                        isFromUser = false,
+                                        imageUri = imageResult,
+                                        localImagePath = localImagePath
+                                    )
+                                    chatAdapter.updateLastMessage(imageMessage)
+                                    sessionManager.saveMessage(imageMessage)
+                                    Log.d("GSRobot", "Volcano Ark image generation successful, saved to: $localImagePath")
+                                }
+                            } else {
+                                // 生成失败或状态更新，显示消息
+                                val statusMessage = ChatMessage(
+                                    content = imageResult,
+                                    isFromUser = false
+                                )
+                                chatAdapter.updateLastMessage(statusMessage)
+                                if (imageResult.contains("失败") || imageResult.contains("错误")) {
+                                    sessionManager.saveMessage(statusMessage)
+                                }
+                                Log.d("GSRobot", "Volcano Ark image generation status: $imageResult")
+                            }
+                            scrollToBottom()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("GSRobot", "Volcano Ark image generation failed", e)
+                        val errorMessage = ChatMessage(
+                            content = "图片生成失败：${e.message}",
+                            isFromUser = false
+                        )
+                        chatAdapter.updateLastMessage(errorMessage)
+                        sessionManager.saveMessage(errorMessage)
+                        scrollToBottom()
+                    }
+                }
+            }
             // 检查是否选择了阿里云百炼模型
             alibabaCloudBailianClient != null && selectedGroup != null && 
             (selectedGroup!!.name.contains("阿里云百炼", ignoreCase = true) || 
