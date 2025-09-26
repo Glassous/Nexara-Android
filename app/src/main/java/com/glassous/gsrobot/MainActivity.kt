@@ -28,6 +28,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.textfield.TextInputEditText
+import com.glassous.gsrobot.utils.ImageDownloadManager
 import com.glassous.gsrobot.data.ChatSession
 import com.glassous.gsrobot.data.ChatSessionManager
 import com.glassous.gsrobot.data.ConfigManager
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navigationDrawer: View
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var sessionManager: ChatSessionManager
+    private lateinit var imageDownloadManager: ImageDownloadManager
     private lateinit var textViewWelcome: TextView
     private lateinit var recyclerViewChatSessions: RecyclerView
     private lateinit var chatSessionAdapter: ChatSessionAdapter
@@ -153,6 +155,9 @@ class MainActivity : AppCompatActivity() {
 
         // 初始化会话管理器
         sessionManager = ChatSessionManager(this)
+        
+        // 初始化图片下载管理器
+        imageDownloadManager = ImageDownloadManager(this)
 
         // 初始化模型配置SharedPreferences（保持兼容性）
         modelConfigPrefs = getSharedPreferences("model_config", Context.MODE_PRIVATE)
@@ -730,15 +735,19 @@ class MainActivity : AppCompatActivity() {
                         alibabaCloudBailianClient!!.generateImage(prompt, apiKey).collect { imageResult ->
                             // 检查结果是否为URL（成功）还是错误消息
                             if (imageResult.startsWith("http", ignoreCase = true)) {
-                                // 成功生成图片，更新消息显示图片
-                                val imageMessage = ChatMessage(
-                                    content = "已为您生成图片",
-                                    isFromUser = false,
-                                    imageUri = imageResult
-                                )
-                                chatAdapter.updateLastMessage(imageMessage)
-                                sessionManager.saveMessage(imageMessage)
-                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation successful")
+                                // 成功生成图片，下载并保存到本地
+                                coroutineScope.launch {
+                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
+                                    val imageMessage = ChatMessage(
+                                        content = "已为您生成图片",
+                                        isFromUser = false,
+                                        imageUri = imageResult,
+                                        localImagePath = localImagePath
+                                    )
+                                    chatAdapter.updateLastMessage(imageMessage)
+                                    sessionManager.saveMessage(imageMessage)
+                                    Log.d("GSRobot", "Alibaba Cloud Bailian image generation successful, saved to: $localImagePath")
+                                }
                             } else if (imageResult.startsWith("Error:", ignoreCase = true)) {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(
@@ -785,15 +794,19 @@ class MainActivity : AppCompatActivity() {
                         googleAIClient!!.generateImage(prompt, apiKey).collect { imageResult ->
                             // 检查结果是否为data URL（成功）还是错误消息
                             if (imageResult.startsWith("data:", ignoreCase = true)) {
-                                // 成功生成图片，更新消息显示图片
-                                val imageMessage = ChatMessage(
-                                    content = "已为您生成图片：",
-                                    isFromUser = false,
-                                    imageUri = imageResult
-                                )
-                                chatAdapter.updateLastMessage(imageMessage)
-                                sessionManager.saveMessage(imageMessage)
-                                Log.d("GSRobot", "Google AI image generation successful")
+                                // 成功生成图片，保存Base64图片到本地
+                                coroutineScope.launch {
+                                    val localImagePath = imageDownloadManager.saveBase64Image(imageResult)
+                                    val imageMessage = ChatMessage(
+                                        content = "已为您生成图片：",
+                                        isFromUser = false,
+                                        imageUri = imageResult,
+                                        localImagePath = localImagePath
+                                    )
+                                    chatAdapter.updateLastMessage(imageMessage)
+                                    sessionManager.saveMessage(imageMessage)
+                                    Log.d("GSRobot", "Google AI image generation successful, saved to: $localImagePath")
+                                }
                             } else {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(
@@ -833,15 +846,19 @@ class MainActivity : AppCompatActivity() {
                         ).collect { imageResult ->
                             // 检查结果是否为URL（成功）还是错误消息
                             if (imageResult.startsWith("http")) {
-                                // 成功生成图片，更新消息显示图片
-                                val imageMessage = ChatMessage(
-                                    content = "已为您生成图片：",
-                                    isFromUser = false,
-                                    imageUri = imageResult
-                                )
-                                chatAdapter.updateLastMessage(imageMessage)
-                                sessionManager.saveMessage(imageMessage)
-                                Log.d("GSRobot", "OpenAI image generation successful")
+                                // 成功生成图片，下载并保存到本地
+                                coroutineScope.launch {
+                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
+                                    val imageMessage = ChatMessage(
+                                        content = "已为您生成图片：",
+                                        isFromUser = false,
+                                        imageUri = imageResult,
+                                        localImagePath = localImagePath
+                                    )
+                                    chatAdapter.updateLastMessage(imageMessage)
+                                    sessionManager.saveMessage(imageMessage)
+                                    Log.d("GSRobot", "OpenAI image generation successful, saved to: $localImagePath")
+                                }
                             } else {
                                 // 生成失败，显示错误消息
                                 val errorMessage = ChatMessage(

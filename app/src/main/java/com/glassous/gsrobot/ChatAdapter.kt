@@ -166,7 +166,15 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         // 处理图片内容
         if (!message.imageUri.isNullOrEmpty()) {
             try {
-                if (message.imageUri.startsWith("data:", ignoreCase = true)) {
+                // 优先使用本地图片路径
+                if (!message.localImagePath.isNullOrEmpty() && 
+                    java.io.File(message.localImagePath).exists()) {
+                    // 使用本地图片文件
+                    com.bumptech.glide.Glide.with(holder.itemView.context)
+                        .load(java.io.File(message.localImagePath))
+                        .into(holder.imageAiMessage)
+                    holder.imageAiMessage.visibility = View.VISIBLE
+                } else if (message.imageUri.startsWith("data:", ignoreCase = true)) {
                     // Base64编码的图片
                     val bitmap = decodeBase64ToBitmap(message.imageUri)
                     holder.imageAiMessage.setImageBitmap(bitmap)

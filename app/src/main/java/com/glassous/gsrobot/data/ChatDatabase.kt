@@ -12,7 +12,7 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
     
     companion object {
         private const val DATABASE_NAME = "chat_database.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         
         // 对话会话表
         private const val TABLE_SESSIONS = "chat_sessions"
@@ -29,6 +29,7 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         private const val COLUMN_MESSAGE_IS_FROM_USER = "is_from_user"
         private const val COLUMN_MESSAGE_TIMESTAMP = "timestamp"
         private const val COLUMN_MESSAGE_IMAGE_URI = "image_uri"
+        private const val COLUMN_MESSAGE_LOCAL_IMAGE_PATH = "local_image_path"
         
         private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     }
@@ -53,6 +54,7 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                 $COLUMN_MESSAGE_IS_FROM_USER INTEGER NOT NULL,
                 $COLUMN_MESSAGE_TIMESTAMP TEXT NOT NULL,
                 $COLUMN_MESSAGE_IMAGE_URI TEXT,
+                $COLUMN_MESSAGE_LOCAL_IMAGE_PATH TEXT,
                 FOREIGN KEY($COLUMN_MESSAGE_SESSION_ID) REFERENCES $TABLE_SESSIONS($COLUMN_SESSION_ID) ON DELETE CASCADE
             )
         """.trimIndent()
@@ -65,6 +67,10 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         if (oldVersion < 2) {
             // 添加image_uri字段到现有的消息表
             db.execSQL("ALTER TABLE $TABLE_MESSAGES ADD COLUMN $COLUMN_MESSAGE_IMAGE_URI TEXT")
+        }
+        if (oldVersion < 3) {
+            // 添加local_image_path字段到现有的消息表
+            db.execSQL("ALTER TABLE $TABLE_MESSAGES ADD COLUMN $COLUMN_MESSAGE_LOCAL_IMAGE_PATH TEXT")
         }
     }
     
@@ -97,6 +103,7 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             put(COLUMN_MESSAGE_IS_FROM_USER, if (message.isFromUser) 1 else 0)
             put(COLUMN_MESSAGE_TIMESTAMP, dateFormat.format(Date()))
             put(COLUMN_MESSAGE_IMAGE_URI, message.imageUri)
+            put(COLUMN_MESSAGE_LOCAL_IMAGE_PATH, message.localImagePath)
         }
         db.insert(TABLE_MESSAGES, null, values)
         
@@ -154,7 +161,8 @@ class ChatDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                 val content = it.getString(it.getColumnIndexOrThrow(COLUMN_MESSAGE_CONTENT))
                 val isFromUser = it.getInt(it.getColumnIndexOrThrow(COLUMN_MESSAGE_IS_FROM_USER)) == 1
                 val imageUri = it.getString(it.getColumnIndexOrThrow(COLUMN_MESSAGE_IMAGE_URI))
-                messages.add(ChatMessage(content, isFromUser, imageUri = imageUri))
+                val localImagePath = it.getString(it.getColumnIndexOrThrow(COLUMN_MESSAGE_LOCAL_IMAGE_PATH))
+                messages.add(ChatMessage(content, isFromUser, imageUri = imageUri, localImagePath = localImagePath))
             }
         }
         
