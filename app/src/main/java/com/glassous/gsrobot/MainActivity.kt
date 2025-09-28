@@ -100,7 +100,8 @@ class MainActivity : AppCompatActivity() {
     private var selectedModel: ModelConfig? = null
 
     private val messages = mutableListOf<ChatMessage>()
-    private val handler = Handler(Looper.getMainLooper())
+    // 删除未使用的Handler
+    // private val handler = Handler(Looper.getMainLooper())
     private var openAIClient: OpenAIClient? = null
     private var googleAIClient: GoogleAIClient? = null
     private var anthropicAIClient: AnthropicAIClient? = null
@@ -132,17 +133,8 @@ class MainActivity : AppCompatActivity() {
         Pair("对比", "请对以下两个事物进行比较并分析优缺点：")
     )
 
-    // AI回复列表
-    private val aiResponses = listOf(
-        "你好！很高兴为您服务！",
-        "这是一个很有趣的问题，让我想想...",
-        "根据我的理解，我认为...",
-        "感谢您的提问！这个话题很值得探讨。",
-        "我明白您的意思，让我为您详细解释一下。",
-        "这确实是一个复杂的问题，需要从多个角度来看。",
-        "很好的观点！我完全同意您的看法。",
-        "让我为您提供一些相关的信息和建议。"
-    )
+    // 删除未使用的aiResponses列表
+    // private val aiResponses = listOf(...)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -618,92 +610,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendMessage() {
-        val messageText = editTextMessage.text?.toString()?.trim()
-
-        // 检查是否有文本或图片
-        if (messageText.isNullOrEmpty() && selectedImageUri == null) {
-            Toast.makeText(this, "请输入消息或选择图片", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // 如果启用了图片生成功能，处理图片生成请求
-        if (isImageGenerateEnabled) {
-            if (messageText.isNullOrEmpty()) {
-                Toast.makeText(this, "请输入图片描述", Toast.LENGTH_SHORT).show()
-                return
-            }
-            handleImageGeneration(messageText)
-            return
-        }
-
-        // 检查是否是新会话的第一条消息
-        val isFirstMessage = !sessionManager.hasCurrentSession()
-        Log.d("GSRobot", "sendMessage: isFirstMessage = $isFirstMessage, messageText = $messageText")
+        val messageText = editTextMessage.text.toString().trim()
+        if (messageText.isEmpty()) return
 
         // 确保有当前会话
+        val isFirstMessage = !sessionManager.hasCurrentSession()
         if (isFirstMessage) {
-            // 先创建会话，使用临时标题
-            sessionManager.startNewSession("新对话")
-            Log.d("GSRobot", "Created new session with temporary title")
-            // 更新导航菜单以显示新会话
+            sessionManager.startNewSession(messageText.take(20))
             updateNavigationMenu()
         }
 
-        // 处理图片转换为Base64
-        var imageDataUrl: String? = null
-        selectedImageUri?.let { uri ->
-            try {
-                imageDataUrl = ImageUtils.uriToBase64DataUrl(this, uri)
-                Log.d("GSRobot", "Image converted to Base64 data URL")
-            } catch (e: Exception) {
-                Log.e("GSRobot", "Failed to convert image to Base64", e)
-                Toast.makeText(this, "图片处理失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        // 检查是否是图片生成请求
+        if (messageText.startsWith("/image ") || messageText.startsWith("/img ")) {
+            val prompt = messageText.substring(if (messageText.startsWith("/image ")) 7 else 5).trim()
+            if (prompt.isNotEmpty()) {
+                handleImageGeneration(prompt)
+                editTextMessage.text?.clear()
                 return
             }
         }
 
         // 添加用户消息
         val userMessage = ChatMessage(
-            content = messageText ?: "",
-            isFromUser = true,
-            imageUri = imageDataUrl
-        )
-        chatAdapter.addMessage(userMessage)
-        sessionManager.saveMessage(userMessage)
-        scrollToBottom()
-        updateWelcomeVisibility()
-
-        // 如果第一条消息，更新会话标题为完整的消息内容
-        if (isFirstMessage) {
-            val titleText = if (messageText.isNullOrEmpty()) "图片消息" else messageText
-            sessionManager.getCurrentSessionId()?.let { sessionId ->
-                Log.d("GSRobot", "Updating session title: sessionId = $sessionId, newTitle = $titleText")
-                sessionManager.updateSessionTitle(sessionId, titleText)
-                // 更新导航菜单以显示新的标题
-                updateNavigationMenu()
-                Log.d("GSRobot", "Session title updated and navigation menu refreshed")
-            }
-        }
-
-        // 清空输入框和选中的图片
-        editTextMessage.text?.clear()
-        clearSelectedImage()
-
-        // AI回复（延迟1-2秒）
-        simulateAiResponse()
-    }
-
-    private fun handleImageGeneration(prompt: String) {
-        // 确保有当前会话
-        val isFirstMessage = !sessionManager.hasCurrentSession()
-        if (isFirstMessage) {
-            sessionManager.startNewSession("图片生成")
-            updateNavigationMenu()
-        }
-
-        // 添加用户的图片生成请求消息
-        val userMessage = ChatMessage(
-            content = prompt,
+            content = messageText,
             isFromUser = true
         )
         chatAdapter.addMessage(userMessage)
@@ -711,258 +640,110 @@ class MainActivity : AppCompatActivity() {
         scrollToBottom()
         updateWelcomeVisibility()
 
-        // 添加Loading indicator消息
+        // 清空输入框
+        editTextMessage.text?.clear()
+
+        // 模拟AI回复
+        simulateAiResponse()
+    }
+
+    private fun handleImageGeneration(prompt: String) {
+        // 添加用户消息
+        val userMessage = ChatMessage(
+            content = prompt,
+            isFromUser = true
+        )
+        chatAdapter.addMessage(userMessage)
+        sessionManager.saveMessage(userMessage)
+
+        // 添加加载消息
         val loadingMessage = ChatMessage(
-            content = "",
-            isFromUser = false,
-            isLoading = true
+            content = "正在生成图片...",
+            isFromUser = false
         )
         chatAdapter.addMessage(loadingMessage)
         scrollToBottom()
 
-        // 根据当前选择的模型类型调用相应的图片生成API
-        when {
-            // 检查是否选择了火山方舟模型 - 只要是火山方舟组的任何模型都使用火山方舟API
-            volcanoArkClient != null -> {
-                // 使用火山方舟图片生成
-                val modelName = selectedModel?.name ?: "doubao-seedream-4-0-250828"
-                Log.d("GSRobot", "Using Volcano Ark for image generation with model: $modelName")
-                
-                coroutineScope.launch {
-                    try {
-                        volcanoArkClient!!.generateImage(modelName, prompt, "2K").collect { imageResult ->
-                            // 检查结果是否为URL（成功）还是错误消息
-                            if (imageResult.startsWith("http", ignoreCase = true)) {
-                                // 成功生成图片，下载并保存到本地
-                                coroutineScope.launch {
-                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
-                                    val imageMessage = ChatMessage(
-                                        content = "已为您生成图片",
-                                        isFromUser = false,
-                                        imageUri = imageResult,
-                                        localImagePath = localImagePath,
-                                        isLoading = false
-                                    )
-                                    chatAdapter.updateLastMessage(imageMessage)
-                                    sessionManager.saveMessage(imageMessage)
-                                    Log.d("GSRobot", "Volcano Ark image generation successful, saved to: $localImagePath")
-                                }
-                            } else {
-                                // 生成失败或状态更新，显示消息
-                                val statusMessage = ChatMessage(
-                                    content = imageResult,
+        // 禁用发送按钮
+        fabSend.isEnabled = false
+
+        coroutineScope.launch {
+            try {
+                // 根据可用的客户端选择图片生成服务
+                when {
+                    volcanoArkClient != null -> {
+                        val modelName = selectedModel?.name ?: ""
+                        volcanoArkClient!!.generateImage(modelName, prompt).collect { result ->
+                            if (result.startsWith("http", ignoreCase = true)) {
+                                // 成功生成图片
+                                val imageMessage = ChatMessage(
+                                    content = "",
                                     isFromUser = false,
-                                    isLoading = false
+                                    imageUri = result
+                                )
+                                chatAdapter.updateLastMessage(imageMessage)
+                                sessionManager.saveMessage(imageMessage)
+                            } else {
+                                // 状态更新或错误
+                                val statusMessage = ChatMessage(
+                                    content = result,
+                                    isFromUser = false
                                 )
                                 chatAdapter.updateLastMessage(statusMessage)
-                                if (imageResult.contains("失败") || imageResult.contains("错误")) {
+                                if (result.contains("失败") || result.contains("错误")) {
                                     sessionManager.saveMessage(statusMessage)
                                 }
-                                Log.d("GSRobot", "Volcano Ark image generation status: $imageResult")
                             }
-                            scrollToBottom()
                         }
-                    } catch (e: Exception) {
-                        Log.e("GSRobot", "Volcano Ark image generation failed", e)
-                        val errorMessage = ChatMessage(
-                            content = "图片生成失败：${e.message}",
-                            isFromUser = false,
-                            isLoading = false
-                        )
-                        chatAdapter.updateLastMessage(errorMessage)
-                        sessionManager.saveMessage(errorMessage)
-                        scrollToBottom()
                     }
-                }
-            }
-            // 检查是否选择了阿里云百炼模型
-            alibabaCloudBailianClient != null && selectedGroup != null && 
-            (selectedGroup!!.name.contains("阿里云百炼", ignoreCase = true) || 
-             selectedGroup!!.name.contains("alibaba", ignoreCase = true) || 
-             selectedGroup!!.name.contains("bailian", ignoreCase = true)) -> {
-                // 使用阿里云百炼图片生成
-                val apiKey = selectedGroup?.apiKey ?: ""
-                Log.d("GSRobot", "Using Alibaba Cloud Bailian for image generation with model: qwen-image-plus")
-                
-                coroutineScope.launch {
-                    try {
-                        alibabaCloudBailianClient!!.generateImage(prompt, apiKey).collect { imageResult ->
-                            // 检查结果是否为URL（成功）还是错误消息
-                            if (imageResult.startsWith("http", ignoreCase = true)) {
-                                // 成功生成图片，下载并保存到本地
-                                coroutineScope.launch {
-                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
-                                    val imageMessage = ChatMessage(
-                                        content = "已为您生成图片",
-                                        isFromUser = false,
-                                        imageUri = imageResult,
-                                        localImagePath = localImagePath,
-                                        isLoading = false
-                                    )
-                                    chatAdapter.updateLastMessage(imageMessage)
-                                    sessionManager.saveMessage(imageMessage)
-                                    Log.d("GSRobot", "Alibaba Cloud Bailian image generation successful, saved to: $localImagePath")
-                                }
-                            } else if (imageResult.startsWith("Error:", ignoreCase = true)) {
-                                // 生成失败，显示错误消息
-                                val errorMessage = ChatMessage(
-                                    content = "图片生成失败：${imageResult.substring(6)}",
+                    alibabaCloudBailianClient != null -> {
+                        val apiKey = selectedGroup?.apiKey ?: ""
+                        alibabaCloudBailianClient!!.generateImage(prompt, apiKey).collect { result ->
+                            if (result.startsWith("http", ignoreCase = true)) {
+                                // 成功生成图片
+                                val imageMessage = ChatMessage(
+                                    content = "",
                                     isFromUser = false,
-                                    isLoading = false
+                                    imageUri = result
+                                )
+                                chatAdapter.updateLastMessage(imageMessage)
+                                sessionManager.saveMessage(imageMessage)
+                            } else if (result.startsWith("Error:", ignoreCase = true)) {
+                                // 生成失败
+                                val errorMessage = ChatMessage(
+                                    content = "图片生成失败：${result.substring(6)}",
+                                    isFromUser = false
                                 )
                                 chatAdapter.updateLastMessage(errorMessage)
                                 sessionManager.saveMessage(errorMessage)
-                                Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed: $imageResult")
-                            } else if (imageResult.contains("正在处理中") || imageResult.contains("任务已提交")) {
-                                // 保持Loading indicator状态，不更新消息
-                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
                             } else {
-                                // 其他状态更新消息 - 只更新内容，不保存到数据库
+                                // 状态更新
                                 val statusMessage = ChatMessage(
-                                    content = imageResult,
-                                    isFromUser = false,
-                                    isLoading = false
+                                    content = result,
+                                    isFromUser = false
                                 )
                                 chatAdapter.updateLastMessage(statusMessage)
-                                Log.d("GSRobot", "Alibaba Cloud Bailian image generation status: $imageResult")
                             }
-                            scrollToBottom()
                         }
-                    } catch (e: Exception) {
-                        Log.e("GSRobot", "Alibaba Cloud Bailian image generation failed", e)
-                        val errorMessage = ChatMessage(
-                            content = "图片生成失败：${e.message}",
-                            isFromUser = false,
-                            isLoading = false
-                        )
-                        chatAdapter.updateLastMessage(errorMessage)
-                        sessionManager.saveMessage(errorMessage)
-                        scrollToBottom()
+                    }
+                    else -> {
+                        throw Exception("没有可用的图片生成服务")
                     }
                 }
-            }
-            // 检查是否选择了Google AI模型
-            googleAIClient != null && selectedGroup != null && selectedGroup!!.baseUrl.isEmpty() -> {
-                // 使用Google AI图片生成
-                val apiKey = selectedGroup?.apiKey ?: ""
-                Log.d("GSRobot", "Using Google AI for image generation with model: gemini-2.5-flash-image-preview")
-                
-                coroutineScope.launch {
-                    try {
-                        googleAIClient!!.generateImage(prompt, apiKey).collect { imageResult ->
-                            // 检查结果是否为data URL（成功）还是错误消息
-                            if (imageResult.startsWith("data:", ignoreCase = true)) {
-                                // 成功生成图片，保存Base64图片到本地
-                                coroutineScope.launch {
-                                    val localImagePath = imageDownloadManager.saveBase64Image(imageResult)
-                                    val imageMessage = ChatMessage(
-                                        content = "已为您生成图片：",
-                                        isFromUser = false,
-                                        imageUri = imageResult,
-                                        localImagePath = localImagePath,
-                                        isLoading = false
-                                    )
-                                    chatAdapter.updateLastMessage(imageMessage)
-                                    sessionManager.saveMessage(imageMessage)
-                                    Log.d("GSRobot", "Google AI image generation successful, saved to: $localImagePath")
-                                }
-                            } else {
-                                // 生成失败，显示错误消息
-                                val errorMessage = ChatMessage(
-                                    content = "图片生成失败：$imageResult",
-                                    isFromUser = false,
-                                    isLoading = false
-                                )
-                                chatAdapter.updateLastMessage(errorMessage)
-                                sessionManager.saveMessage(errorMessage)
-                                Log.e("GSRobot", "Google AI image generation failed: $imageResult")
-                            }
-                            scrollToBottom()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("GSRobot", "Google AI image generation failed", e)
-                        val errorMessage = ChatMessage(
-                            content = "图片生成失败：${e.message}",
-                            isFromUser = false,
-                            isLoading = false
-                        )
-                        chatAdapter.updateLastMessage(errorMessage)
-                        sessionManager.saveMessage(errorMessage)
-                        scrollToBottom()
-                    }
-                }
-            }
-            // 使用OpenAI图片生成（原有逻辑）
-            openAIClient != null -> {
-                Log.d("GSRobot", "Using OpenAI for image generation with model: dall-e-3")
-                
-                coroutineScope.launch {
-                    try {
-                        openAIClient!!.generateImage(
-                            prompt = prompt,
-                            model = "dall-e-3",
-                            size = "1024x1024",
-                            quality = "standard",
-                            n = 1
-                        ).collect { imageResult ->
-                            // 检查结果是否为URL（成功）还是错误消息
-                            if (imageResult.startsWith("http")) {
-                                // 成功生成图片，下载并保存到本地
-                                coroutineScope.launch {
-                                    val localImagePath = imageDownloadManager.downloadAndSaveImage(imageResult)
-                                    val imageMessage = ChatMessage(
-                                        content = "已为您生成图片：",
-                                        isFromUser = false,
-                                        imageUri = imageResult,
-                                        localImagePath = localImagePath,
-                                        isLoading = false
-                                    )
-                                    chatAdapter.updateLastMessage(imageMessage)
-                                    sessionManager.saveMessage(imageMessage)
-                                    Log.d("GSRobot", "OpenAI image generation successful, saved to: $localImagePath")
-                                }
-                            } else {
-                                // 生成失败，显示错误消息
-                                val errorMessage = ChatMessage(
-                                    content = "图片生成失败：$imageResult",
-                                    isFromUser = false,
-                                    isLoading = false
-                                )
-                                chatAdapter.updateLastMessage(errorMessage)
-                                sessionManager.saveMessage(errorMessage)
-                                Log.e("GSRobot", "OpenAI image generation failed: $imageResult")
-                            }
-                            scrollToBottom()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("GSRobot", "OpenAI image generation failed", e)
-                        val errorMessage = ChatMessage(
-                            content = "图片生成失败：${e.message}",
-                            isFromUser = false,
-                            isLoading = false
-                        )
-                        chatAdapter.updateLastMessage(errorMessage)
-                        sessionManager.saveMessage(errorMessage)
-                        scrollToBottom()
-                    }
-                }
-            }
-            else -> {
-                // 没有可用的图片生成客户端
+
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error generating image", e)
                 val errorMessage = ChatMessage(
-                    content = "图片生成功能不可用，请检查AI模型配置",
-                    isFromUser = false,
-                    isLoading = false
+                    content = "图片生成失败: ${e.message}",
+                    isFromUser = false
                 )
                 chatAdapter.updateLastMessage(errorMessage)
                 sessionManager.saveMessage(errorMessage)
-                scrollToBottom()
-                Log.e("GSRobot", "No image generation client available")
+            } finally {
+                // 重新启用发送按钮
+                fabSend.isEnabled = true
             }
         }
-
-        // 清空输入框
-        editTextMessage.text?.clear()
     }
 
     private fun simulateAiResponse() {
@@ -998,7 +779,6 @@ class MainActivity : AppCompatActivity() {
             )
             chatAdapter.updateLastMessage(errorMessage)
             sessionManager.saveMessage(errorMessage)
-            scrollToBottom()
             fabSend.isEnabled = true
             return
         }
@@ -1008,120 +788,57 @@ class MainActivity : AppCompatActivity() {
             try {
                 var responseContent = ""
                 var isFirstChunk = true
-
                 val filteredMessages = messages.filter { it.content != "正在思考中..." }
 
-                if (openAIClient != null) {
-                    // 使用OpenAI客户端
-                    val newConfigPrefs = getSharedPreferences("model_config", Context.MODE_PRIVATE)
-                    val streaming = newConfigPrefs.getBoolean("streaming", true)
+                // 统一的消息更新函数
+                fun updateMessage(chunk: String) {
+                    if (isFirstChunk) {
+                        responseContent = chunk
+                        isFirstChunk = false
+                    } else {
+                        responseContent += chunk
+                    }
 
-                    openAIClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
-                        .collect { chunk ->
-                            if (isFirstChunk) {
-                                responseContent = chunk
-                                isFirstChunk = false
-                            } else {
-                                responseContent += chunk
-                            }
+                    val aiMessage = ChatMessage(
+                        content = responseContent,
+                        isFromUser = false
+                    )
+                    chatAdapter.updateLastMessage(aiMessage)
+                    scrollToBottom()
+                }
 
-                            val aiMessage = ChatMessage(
-                                content = responseContent,
-                                isFromUser = false
-                            )
-
-                            chatAdapter.updateLastMessage(aiMessage)
-                            scrollToBottom()
-                        }
-                } else if (googleAIClient != null) {
-                    // 使用Google AI客户端
-                    val googleAIConfigPrefs = getSharedPreferences("google_ai_model_config", Context.MODE_PRIVATE)
-                    val streaming = googleAIConfigPrefs.getBoolean("streaming", true)
-                    val apiKey = selectedGroup?.apiKey ?: ""
-
-                    googleAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
-                        .collect { chunk ->
-                            if (isFirstChunk) {
-                                responseContent = chunk
-                                isFirstChunk = false
-                            } else {
-                                responseContent += chunk
-                            }
-
-                            val aiMessage = ChatMessage(
-                                content = responseContent,
-                                isFromUser = false
-                            )
-
-                            chatAdapter.updateLastMessage(aiMessage)
-                            scrollToBottom()
-                        }
-                } else if (anthropicAIClient != null) {
-                    // 使用Anthropic AI客户端
-                    val anthropicAIConfigPrefs = getSharedPreferences("anthropic_ai_model_config", Context.MODE_PRIVATE)
-                    val streaming = anthropicAIConfigPrefs.getBoolean("streaming", true)
-                    val apiKey = selectedGroup?.apiKey ?: ""
-
-                    anthropicAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
-                        .collect { chunk ->
-                            if (isFirstChunk) {
-                                responseContent = chunk
-                                isFirstChunk = false
-                            } else {
-                                responseContent += chunk
-                            }
-
-                            val aiMessage = ChatMessage(
-                                content = responseContent,
-                                isFromUser = false
-                            )
-
-                            chatAdapter.updateLastMessage(aiMessage)
-                            scrollToBottom()
-                        }
-                } else if (volcanoArkClient != null) {
-                    // 使用火山方舟客户端
-                    val volcanoArkConfigPrefs = getSharedPreferences("volcano_ark_model_config", Context.MODE_PRIVATE)
-                    val streaming = volcanoArkConfigPrefs.getBoolean("streaming", true)
-
-                    volcanoArkClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
-                        .collect { chunk ->
-                            if (isFirstChunk) {
-                                responseContent = chunk
-                                isFirstChunk = false
-                            } else {
-                                responseContent += chunk
-                            }
-
-                            val aiMessage = ChatMessage(
-                                content = responseContent,
-                                isFromUser = false
-                            )
-
-                            chatAdapter.updateLastMessage(aiMessage)
-                            scrollToBottom()
-                        }
-                } else if (alibabaCloudBailianClient != null) {
-                    // 使用阿里云百炼客户端
-                    val apiKey = selectedGroup?.apiKey ?: ""
-
-                    alibabaCloudBailianClient!!.sendChatRequest(modelName, filteredMessages, apiKey, isWebSearchEnabled)
-                        .collect { chunk ->
-                            if (isFirstChunk) {
-                                responseContent = chunk
-                                isFirstChunk = false
-                            } else {
-                                responseContent += chunk
-                            }
-
-                            val aiMessage = ChatMessage(
-                                content = responseContent,
-                                isFromUser = false
-                            )
-
-                            chatAdapter.updateLastMessage(aiMessage)
-                            scrollToBottom()
-                        }
+                when {
+                    openAIClient != null -> {
+                        val configPrefs = getSharedPreferences("model_config", Context.MODE_PRIVATE)
+                        val streaming = configPrefs.getBoolean("streaming", true)
+                        openAIClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
+                            .collect { chunk -> updateMessage(chunk) }
+                    }
+                    googleAIClient != null -> {
+                        val configPrefs = getSharedPreferences("google_ai_model_config", Context.MODE_PRIVATE)
+                        val streaming = configPrefs.getBoolean("streaming", true)
+                        val apiKey = selectedGroup?.apiKey ?: ""
+                        googleAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
+                            .collect { chunk -> updateMessage(chunk) }
+                    }
+                    anthropicAIClient != null -> {
+                        val configPrefs = getSharedPreferences("anthropic_ai_model_config", Context.MODE_PRIVATE)
+                        val streaming = configPrefs.getBoolean("streaming", true)
+                        val apiKey = selectedGroup?.apiKey ?: ""
+                        anthropicAIClient!!.sendChatRequest(modelName, filteredMessages, apiKey, streaming, isWebSearchEnabled)
+                            .collect { chunk -> updateMessage(chunk) }
+                    }
+                    volcanoArkClient != null -> {
+                        val configPrefs = getSharedPreferences("volcano_ark_model_config", Context.MODE_PRIVATE)
+                        val streaming = configPrefs.getBoolean("streaming", true)
+                        volcanoArkClient!!.sendChatRequest(modelName, filteredMessages, streaming, isWebSearchEnabled)
+                            .collect { chunk -> updateMessage(chunk) }
+                    }
+                    alibabaCloudBailianClient != null -> {
+                        val apiKey = selectedGroup?.apiKey ?: ""
+                        alibabaCloudBailianClient!!.sendChatRequest(modelName, filteredMessages, apiKey, isWebSearchEnabled)
+                            .collect { chunk -> updateMessage(chunk) }
+                    }
                 }
 
                 // 保存最终消息到当前会话
@@ -1131,19 +848,14 @@ class MainActivity : AppCompatActivity() {
                 )
                 sessionManager.saveMessage(finalMessage)
 
-                // 更新UI中的最后一条消息
-                chatAdapter.updateLastMessage(finalMessage)
-
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error getting AI response", e)
-
                 val errorMessage = ChatMessage(
                     content = "获取AI回复失败: ${e.message}",
                     isFromUser = false
                 )
                 chatAdapter.updateLastMessage(errorMessage)
                 sessionManager.saveMessage(errorMessage)
-                scrollToBottom()
             } finally {
                 // 重新启用发送按钮
                 fabSend.isEnabled = true
