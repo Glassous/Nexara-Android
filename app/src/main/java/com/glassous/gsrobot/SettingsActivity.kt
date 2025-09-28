@@ -20,8 +20,15 @@ import com.glassous.gsrobot.data.ModelConfig
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.chip.ChipGroup
+import com.google.android.material.textfield.TextInputEditText
 import com.glassous.gsrobot.GoogleAIModelConfigActivity
 import com.glassous.gsrobot.VolcanoArkModelConfigActivity
+import kotlinx.coroutines.*
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -35,6 +42,12 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var buttonAnthropicConfig: MaterialButton
     private lateinit var buttonAliyunConfig: MaterialButton
     private lateinit var buttonVolcanoConfig: MaterialButton
+    
+    // 意见反馈相关UI组件
+    private lateinit var chipGroupFeedbackType: ChipGroup
+    private lateinit var editTextEmail: TextInputEditText
+    private lateinit var editTextFeedback: TextInputEditText
+    private lateinit var buttonSubmitFeedback: MaterialButton
     
     // 模型选择相关
     private lateinit var cardCurrentModel: MaterialCardView
@@ -62,6 +75,7 @@ class SettingsActivity : AppCompatActivity() {
         setupAnthropicConfigButton()
         setupNewAIConfigButtons()
         setupModelSelection()
+        setupFeedbackModule()
     }
     
     private fun initViews() {
@@ -74,6 +88,12 @@ class SettingsActivity : AppCompatActivity() {
         buttonAnthropicConfig = findViewById(R.id.buttonAnthropicConfig)
         buttonAliyunConfig = findViewById(R.id.buttonAliyunConfig)
         buttonVolcanoConfig = findViewById(R.id.buttonVolcanoConfig)
+        
+        // 意见反馈相关UI组件
+        chipGroupFeedbackType = findViewById(R.id.chipGroupFeedbackType)
+        editTextEmail = findViewById(R.id.editTextEmail)
+        editTextFeedback = findViewById(R.id.editTextFeedback)
+        buttonSubmitFeedback = findViewById(R.id.buttonSubmitFeedback)
         
         // 模型选择相关
         cardCurrentModel = findViewById(R.id.cardCurrentModel)
@@ -431,5 +451,101 @@ class SettingsActivity : AppCompatActivity() {
         // 重新加载配置，以防从OpenAI模型配置页面返回后配置发生变化
         loadModelConfiguration()
         updateCurrentModelDisplay()
+    }
+    
+    private fun setupFeedbackModule() {
+        buttonSubmitFeedback.setOnClickListener {
+            submitFeedback()
+        }
+    }
+    
+    private fun submitFeedback() {
+        val feedbackText = editTextFeedback.text?.toString()?.trim()
+        if (feedbackText.isNullOrEmpty()) {
+            Toast.makeText(this, "请输入反馈内容", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 获取反馈类型
+        val feedbackType = when (chipGroupFeedbackType.checkedChipId) {
+            R.id.chipBugReport -> "问题反馈"
+            R.id.chipFeatureRequest -> "功能建议"
+            R.id.chipOther -> "其他"
+            else -> "问题反馈"
+        }
+        
+        val email = editTextEmail.text?.toString()?.trim() ?: ""
+        
+        // 禁用提交按钮，防止重复提交
+        buttonSubmitFeedback.isEnabled = false
+        buttonSubmitFeedback.text = "提交中..."
+        
+        // 使用协程在后台线程提交反馈
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val success = sendFeedbackToWeb3Forms(feedbackType, feedbackText, email)
+                
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        Toast.makeText(this@SettingsActivity, "反馈提交成功，感谢您的建议！", Toast.LENGTH_LONG).show()
+                        // 清空表单
+                        editTextFeedback.setText("")
+                        editTextEmail.setText("")
+                        chipGroupFeedbackType.check(R.id.chipBugReport)
+                    } else {
+                        Toast.makeText(this@SettingsActivity, "反馈提交失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                    }
+                    
+                    // 恢复提交按钮
+                    buttonSubmitFeedback.isEnabled = true
+                    buttonSubmitFeedback.text = "提交反馈"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@SettingsActivity, "网络错误，请检查网络连接", Toast.LENGTH_SHORT).show()
+                    
+                    // 恢复提交按钮
+                    buttonSubmitFeedback.isEnabled = true
+                    buttonSubmitFeedback.text = "提交反馈"
+                }
+            }
+        }
+    }
+    
+    private suspend fun sendFeedbackToWeb3Forms(type: String, feedback: String, email: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL("https://api.web3forms.com/submit")
+                val connection = url.openConnection() as HttpURLConnection
+                
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("Accept", "application/json")
+                connection.doOutput = true
+                
+                val jsonObject = JSONObject().apply {
+                    put("access_key", "913c1710-5fee-4a7a-a46f-2700bf248ed0")
+                    put("subject", "GSRobot Android 应用反馈 - $type")
+                    put("message", "反馈类型: $type\n\n反馈内容:\n$feedback")
+                    if (email.isNotEmpty()) {
+                        put("email", email)
+                        put("from_name", email)
+                    } else {
+                        put("from_name", "匿名用户")
+                    }
+                }
+                
+                val outputStreamWriter = OutputStreamWriter(connection.outputStream)
+                outputStreamWriter.write(jsonObject.toString())
+                outputStreamWriter.flush()
+                outputStreamWriter.close()
+                
+                val responseCode = connection.responseCode
+                responseCode == HttpURLConnection.HTTP_OK
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 }
